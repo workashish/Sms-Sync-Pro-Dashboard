@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import crypto from "crypto";
 
+export async function GET(req: NextRequest) {
+    return NextResponse.json({
+        status: "online",
+        message: "SMS Relay Webhook Endpoint. Please send a POST request with the appropriate JSON payload."
+    });
+}
+
 export async function POST(req: NextRequest) {
         let responsePayload: any = { error: "Unknown error" };
         let statusCode: number = 500;
