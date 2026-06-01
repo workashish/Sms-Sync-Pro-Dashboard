@@ -15,6 +15,7 @@ export async function POST(req: Request) {
                 if (redacted.body) redacted.body = typeof redacted.body === 'string' ? "..." : redacted.body;
             }
             await supabase.from('webhook_logs').insert([{
+                id: crypto.randomUUID(),
                 payload: redacted || { raw: (rawBody || "").substring(0, 100) },
                 status: statusStr,
                 error: errorStr || null
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
         }
 
         const { error } = await supabase.from(tableName).insert([{
+            id: crypto.randomUUID(),
             sender,
             body: messageBody,
             metadata: metadata || {}
