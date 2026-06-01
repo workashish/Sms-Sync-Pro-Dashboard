@@ -9,11 +9,23 @@ interface OtpMessage {
     sender: string;
     body: string;
     time: string;
+    created_at?: string;
     metadata?: {
         code?: string;
         expiry_mins?: number;
     }
 }
+
+const formatTime = (isoString?: string, fallbackString?: string) => {
+    if (isoString) {
+        try {
+            return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            // ignore
+        }
+    }
+    return fallbackString || "";
+};
 
 export default function OTPCenter() {
     const [loading, setLoading] = useState(false);
@@ -135,7 +147,7 @@ export default function OTPCenter() {
                                             <h4 className="text-2xl font-bold font-mono tracking-widest text-slate-800 mt-1">{otpCode}</h4>
                                         </div>
                                         <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                                            {msg.time}
+                                            {formatTime(msg.created_at, msg.time)}
                                         </span>
                                     </div>
                                     

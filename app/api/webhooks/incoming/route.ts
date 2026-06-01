@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
         if (error) {
             console.error("Supabase insert error:", error);
-            return NextResponse.json({ error: "Database error" }, { status: 500 });
+            return NextResponse.json({ error: "Database error", details: error }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, message: "Payload processed successfully" }, { status: 201 });

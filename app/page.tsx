@@ -10,7 +10,19 @@ interface Message {
     body: string;
     time: string;
     status: string;
+    created_at?: string;
 }
+
+const formatTime = (isoString?: string, fallbackString?: string) => {
+    if (isoString) {
+        try {
+            return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            // ignore
+        }
+    }
+    return fallbackString || "";
+};
 
 export default function Home() {
     const [loading, setLoading] = useState(false);
@@ -143,7 +155,7 @@ export default function Home() {
                                         {msg.body}
                                     </div>
                                     <div className="col-span-2 text-sm text-slate-500 font-mono">
-                                        {msg.time}
+                                        {formatTime(msg.created_at, msg.time)}
                                     </div>
                                     <div className="col-span-1 text-right flex justify-end">
                                         <ShieldCheck className="w-4 h-4 text-emerald-500" />
