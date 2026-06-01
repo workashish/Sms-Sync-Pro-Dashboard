@@ -1,11 +1,19 @@
 'use client';
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ShieldAlert, BadgeCent, MessageSquare, PieChart, Settings, LayoutDashboard } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ShieldAlert, BadgeCent, MessageSquare, PieChart, Settings, LayoutDashboard, LogOut } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Sidebar() {
     const pathname = usePathname();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/login');
+        router.refresh();
+    };
+
     const links = [
         { name: "Live Feed", href: "/", icon: LayoutDashboard },
         { name: "All Messages", href: "/all", icon: MessageSquare },
@@ -46,10 +54,19 @@ export function Sidebar() {
                         <span className="text-slate-600 dark:text-slate-400">Relay</span> <span className="text-emerald-600 dark:text-emerald-500 font-bold">Online</span>
                     </div>
                 </div>
-                <div className="flex items-center justify-between px-2">
+                
+                <div className="flex items-center justify-between px-2 pt-2">
                     <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Theme</span>
                     <ThemeToggle />
                 </div>
+
+                <button 
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center space-x-2 px-3 py-2 mt-2 rounded-md text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 font-medium transition-colors"
+                >
+                    <LogOut className="h-4 w-4" />
+                    <span>Lock Dashboard</span>
+                </button>
             </div>
         </aside>
     )
