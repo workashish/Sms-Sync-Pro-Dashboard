@@ -30,6 +30,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 # Optional but highly recommended: HMAC Signature Secret to secure the webhook endpoint
 APP_HMAC_SECRET=your_secret_key
+
+# Optional: AES-256 Secret Key to decrypt incoming message bodies
+APP_AES_KEY=your_aes_secret_key
 ```
 
 ### Database Schema (Supabase)
@@ -128,6 +131,32 @@ const signature = crypto.createHmac('sha256', secret)
 
 // Send 'signature' in the 'x-hmac-signature' header.
 ```
+
+## End-to-End Encryption (AES-256)
+
+If you do not want your SMS content to traverse the internet as plain text, you can encrypt the `body` field of your JSON using AES-256 before POSTing the webhook. 
+
+1. Define `APP_AES_KEY` in your environment variables.
+2. Encrypt the `body` field of your JSON payload using AES (typically via CryptoJS/crypto-js on the client/forwarder).
+
+*Example encrypting the payload in Node/JS/Tasker via CryptoJS:*
+```javascript
+const CryptoJS = require("crypto-js");
+const myAesKey = "your_aes_secret_key";
+const rawBodyText = "Hey, let's grab lunch later!";
+
+// Encrypt the message body
+const encryptedBody = CryptoJS.AES.encrypt(rawBodyText, myAesKey).toString();
+
+// The rest of the payload remains plain JSON:
+const payload = {
+  type: "message",
+  sender: "+12345678900",
+  body: encryptedBody,
+  time: "12:34 PM"
+};
+```
+When your dashboard receives this payload, it will automatically decrypt `body` and store it as plain text in the database.
 
 ### Response Codes
 

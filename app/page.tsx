@@ -20,6 +20,20 @@ export default function Home() {
     const [searchQuery, setSearchQuery] = useState("");
     const [error, setError] = useState<string | null>(null);
 
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    const toggleExpand = (id: string) => {
+        setExpandedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
     const fetchMessages = async () => {
         try {
             setLoading(true);
@@ -150,13 +164,19 @@ export default function Home() {
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredMessages.map(msg => (
-                                <div key={msg.id} className="p-5 grid grid-cols-12 gap-4 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            {filteredMessages.map(msg => {
+                                const isExpanded = expandedIds.has(msg.id);
+                                return (
+                                <div 
+                                    key={msg.id} 
+                                    onClick={() => toggleExpand(msg.id)}
+                                    className="p-5 grid grid-cols-12 gap-4 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                                >
                                     <div className="col-span-3 font-medium text-slate-700 dark:text-slate-300 flex items-center">
                                         <Smartphone className="w-4 h-4 mr-2 text-slate-400 dark:text-slate-500" />
                                         {msg.sender}
                                     </div>
-                                    <div className="col-span-6 text-sm text-slate-600 dark:text-slate-400 pr-4 truncate">
+                                    <div className={`col-span-6 text-sm text-slate-600 dark:text-slate-400 pr-4 ${isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
                                         {msg.body}
                                     </div>
                                     <div className="col-span-2 text-sm text-slate-500 dark:text-slate-500 font-mono">
@@ -166,7 +186,8 @@ export default function Home() {
                                         <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

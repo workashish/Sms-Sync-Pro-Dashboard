@@ -24,6 +24,20 @@ export default function OTPCenter() {
     const [searchQuery, setSearchQuery] = useState("");
     const [error, setError] = useState<string | null>(null);
 
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    const toggleExpand = (id: string) => {
+        setExpandedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
     const fetchMessages = async () => {
         try {
             setLoading(true);
@@ -144,8 +158,9 @@ export default function OTPCenter() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredMessages.map((msg) => {
                             const otpCode = msg.metadata?.code || "---";
+                            const isExpanded = expandedIds.has(msg.id);
                             return (
-                                <div key={msg.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative flex flex-col transition-colors">
+                                <div key={msg.id} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative flex flex-col transition-colors cursor-pointer" onClick={() => toggleExpand(msg.id)}>
                                     <div className="flex justify-between items-start mb-3">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 leading-none uppercase">{msg.sender}</p>
@@ -156,13 +171,13 @@ export default function OTPCenter() {
                                         </span>
                                     </div>
                                     
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-2 leading-relaxed flex-1">
+                                    <p className={`text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed flex-1 ${isExpanded ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}>
                                         {msg.body}
                                     </p>
         
                                     <div className="flex gap-2 mt-auto">
                                         <button 
-                                            onClick={() => handleCopy(otpCode, msg.id)}
+                                            onClick={(e) => { e.stopPropagation(); handleCopy(otpCode, msg.id); }}
                                             className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px] py-1.5 rounded font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors uppercase"
                                         >
                                             {copiedId === msg.id ? 'COPIED!' : 'COPY CODE'}

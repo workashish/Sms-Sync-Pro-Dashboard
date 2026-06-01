@@ -23,6 +23,20 @@ export default function BankActivity() {
     const [searchQuery, setSearchQuery] = useState("");
     const [error, setError] = useState<string | null>(null);
 
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    const toggleExpand = (id: string) => {
+        setExpandedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
     const fetchMessages = async () => {
         try {
             setLoading(true);
@@ -132,9 +146,10 @@ export default function BankActivity() {
                                 {filteredMessages.map((msg) => {
                                     const isCredit = msg.metadata?.bank_type === 'DEPOSIT';
                                     const isDebit = msg.metadata?.bank_type === 'PAYMENT';
+                                    const isExpanded = expandedIds.has(msg.id);
                                     
                                     return (
-                                        <tr key={msg.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
+                                        <tr key={msg.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors cursor-pointer" onClick={() => toggleExpand(msg.id)}>
                                             <td className="p-4 font-medium flex items-center text-slate-700 dark:text-slate-300">
                                                 <Landmark className="w-4 h-4 mr-2 text-slate-400 dark:text-slate-500" />
                                                 {msg.sender}
@@ -144,7 +159,7 @@ export default function BankActivity() {
                                                     {msg.metadata?.bank_type || 'INFO'}
                                                 </span>
                                             </td>
-                                            <td className="p-4 text-slate-600 dark:text-slate-400">
+                                            <td className={`p-4 text-slate-600 dark:text-slate-400 max-w-[200px] ${isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
                                                 {msg.body}
                                             </td>
                                             <td className="p-4 text-slate-500 font-mono text-xs">
@@ -153,7 +168,7 @@ export default function BankActivity() {
                                             <td className="p-4 text-right">
                                                 {msg.metadata?.amount && (
                                                     <span className={`font-mono font-bold ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : isDebit ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-100'}`}>
-                                                        {isCredit ? '+' : isDebit ? '-' : ''}{formatAmount(msg.metadata.amount)}
+                                                        {isCredit ? '+' : isDebit ? '-' : ''}{formatAmount(msg.metadata.amount as any)}
                                                     </span>
                                                 )}
                                             </td>

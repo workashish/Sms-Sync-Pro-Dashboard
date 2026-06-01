@@ -65,11 +65,30 @@ export async function POST(req: NextRequest) {
             }
 
             const body = JSON.parse(rawBody);
-            const { type = 'message', sender, body: messageBody, time, metadata } = body;
+            const { type = 'message', sender, time, metadata } = body;
+            let messageBody = body.body;
 
             if (!sender || !messageBody) {
                 await logRequest(body, "error", "Missing required fields: sender, body");
                 return NextResponse.json({ error: "Missing required fields: sender, body" }, { status: 400 });
+            }
+
+            const aesKey = process.env.APP_AES_KEY;
+            if (aesKey && typeof messageBody === 'string') {
+                try {
+                    // Try decrypting with CryptoJS (supports standard AES outputs like those from Android/Web clients)
+                    const CryptoJS = require("crypto-js");
+                    const bytes = CryptoJS.AES.decrypt(messageBody, aesKey);
+                    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+                    
+                    if (!decrypted) {
+                        throw new Error("Empty decryption result. Key might be wrong or format unsupported.");
+                    }
+                    messageBody = decrypted;
+                } catch (e: any) {
+                    await logRequest(body, "error", "AES Decryption failed: " + e.message);
+                    return NextResponse.json({ error: "Failed to decrypt message body with AES key" }, { status: 400 });
+                }
             }
 
             const supabase = getSupabase();
