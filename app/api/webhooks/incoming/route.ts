@@ -48,19 +48,17 @@ export async function POST(req: Request) {
         const { error } = await supabase.from(tableName).insert([{
             sender,
             body: messageBody,
-            type,
-            device_time: time,
             metadata: metadata || {}
         }]);
 
         if (error) {
             await logRequest(body, "error", `DB error: ${error.message}`);
-            return NextResponse.json({ error: "DB Error" }, { status: 500 });
+            return NextResponse.json({ error: "DB Error", details: error.message }, { status: 500 });
         }
 
         await logRequest(body, "success");
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message, details: error }, { status: 500 });
     }
 }
