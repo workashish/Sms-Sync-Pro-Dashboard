@@ -1,12 +1,15 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Settings, Check, Monitor, Layout, Bell } from "lucide-react";
+import { Settings, Check, Monitor, Layout, Bell, Database, HardDrive, Trash2, Webhook, Send } from "lucide-react";
 import { useState, useEffect } from "react";
+import { getSupabase } from "@/lib/supabase";
 
 export default function SettingsCenter() {
     const [compactMode, setCompactMode] = useState(false);
     const [notifications, setNotifications] = useState(true);
     const [saved, setSaved] = useState(false);
+    const [simulating, setSimulating] = useState(false);
+    const [clearing, setClearing] = useState(false);
 
     useEffect(() => {
         const storedCompact = localStorage.getItem('syncpro_compact') === 'true';
@@ -20,8 +23,56 @@ export default function SettingsCenter() {
         localStorage.setItem('syncpro_notifications', String(notifications));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-        // Force reload to apply layout changes globally if applied to root layout
         window.location.reload();
+    };
+
+    const simulateWebhook = async (type: string) => {
+        setSimulating(true);
+        try {
+            let body = "Testing generic message sync.";
+            let sender = "+1 555 0192";
+            if (type === 'otp') {
+                body = `Your secure login code is ${Math.floor(100000 + Math.random() * 900000)}. Do not share this with anyone.`;
+                sender = "AuthService";
+            } else if (type === 'bank') {
+                body = `ALERT: $${(Math.random()*500).toFixed(2)} debited from A/C ending in 4921 upon merchant SWIPE.`;
+                sender = "CHASE-BANK";
+            }
+
+            await fetch('/api/webhooks/incoming', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type,
+                    sender,
+                    body,
+                    time: new Date().toISOString(),
+                    metadata: { device: 'Simulated Device' }
+                })
+            });
+            alert("Webhook dispatched successfully!");
+        } catch (e) {
+            alert("Failed to dispatch webhook");
+        }
+        setSimulating(false);
+    };
+
+    const clearAllData = async () => {
+        if (!confirm("Are you sure you want to delete ALL messages and logs? This is irreversible.")) return;
+        setClearing(true);
+        try {
+            const supabase = getSupabase();
+            await Promise.all([
+                supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+                supabase.from('otp_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+                supabase.from('bank_activity').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+                supabase.from('webhook_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+            ]);
+            alert("All database tables cleared.");
+        } catch (e) {
+            alert("Failed to clear database");
+        }
+        setClearing(false);
     };
 
     return (
@@ -63,6 +114,36 @@ export default function SettingsCenter() {
                             <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
                         </div>
                     </label>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><Webhook className="w-4 h-4" /> Webhook Integration</h3>
+                    <div className="mb-4">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Simulate Incoming Data</p>
+                        <p className="text-sm text-slate-500 mb-4">Trigger functional test webhooks across different payload types.</p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button disabled={simulating} onClick={() => simulateWebhook('message')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test General</button>
+                            <button disabled={simulating} onClick={() => simulateWebhook('otp')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test OTP</button>
+                            <button disabled={simulating} onClick={() => simulateWebhook('bank')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test Bank</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-red-50 dark:bg-red-500/10 p-6 rounded-2xl border border-red-200 dark:border-red-900/50 shadow-sm">
+                    <h3 className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Database className="w-4 h-4" /> Danger Zone</h3>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">Purge Data Storage</p>
+                            <p className="text-sm text-slate-500 mt-1 max-w-sm">Permanently delete all messages, auth codes, and synchronization logs from the database.</p>
+                        </div>
+                        <button 
+                            disabled={clearing}
+                            onClick={clearAllData}
+                            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2 font-medium text-sm transition-colors shadow-sm disabled:opacity-50"
+                        >
+                            <Trash2 className="w-4 h-4" /> {clearing ? "Purging..." : "Clear DB"}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="pt-4 flex items-center gap-4">

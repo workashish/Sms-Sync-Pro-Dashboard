@@ -1,29 +1,42 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { LayoutDashboard, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { LayoutDashboard, CheckCircle2, XCircle, Clock, RefreshCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 
 export default function LogsCenter() {
     const [logs, setLogs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        const supabase = getSupabase();
+        const { data } = await supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(50);
+        if (data) setLogs(data);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchLogs = async () => {
-            const supabase = getSupabase();
-            const { data } = await supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(50);
-            if (data) setLogs(data);
-        };
         fetchLogs();
     }, []);
 
     return (
         <DashboardLayout>
-            <div className="mb-8 px-2">
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                    <LayoutDashboard className="w-8 h-8 text-slate-400" />
-                    System Logs
-                </h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm max-w-lg">Audit trail of webhook invocations and payload processing.</p>
+            <div className="mb-8 px-2 flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+                        <LayoutDashboard className="w-8 h-8 text-slate-400" />
+                        System Logs
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm max-w-lg">Audit trail of webhook invocations and payload processing.</p>
+                </div>
+                <button 
+                    onClick={fetchLogs} 
+                    disabled={loading}
+                    className="p-2.5 bg-white dark:bg-slate-900 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300"
+                >
+                    <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
             </div>
 
             <div className="space-y-4">
