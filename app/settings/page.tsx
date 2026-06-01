@@ -1,60 +1,25 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Settings, Check, Monitor, Layout, Bell, Database, HardDrive, Trash2, Webhook, Send } from "lucide-react";
+import { Settings, Check, Monitor, Layout, Bell, Database, HardDrive, Trash2, Webhook, Send, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 
 export default function SettingsCenter() {
-    const [compactMode, setCompactMode] = useState(false);
     const [notifications, setNotifications] = useState(true);
     const [saved, setSaved] = useState(false);
-    const [simulating, setSimulating] = useState(false);
     const [clearing, setClearing] = useState(false);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
-        const storedCompact = localStorage.getItem('syncpro_compact') === 'true';
         const storedNotif = localStorage.getItem('syncpro_notifications') !== 'false';
-        setCompactMode(storedCompact);
         setNotifications(storedNotif);
     }, []);
 
     const saveSettings = () => {
-        localStorage.setItem('syncpro_compact', String(compactMode));
         localStorage.setItem('syncpro_notifications', String(notifications));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
         window.location.reload();
-    };
-
-    const simulateWebhook = async (type: string) => {
-        setSimulating(true);
-        try {
-            let body = "Testing generic message sync.";
-            let sender = "+1 555 0192";
-            if (type === 'otp') {
-                body = `Your secure login code is ${Math.floor(100000 + Math.random() * 900000)}. Do not share this with anyone.`;
-                sender = "AuthService";
-            } else if (type === 'bank') {
-                body = `ALERT: $${(Math.random()*500).toFixed(2)} debited from A/C ending in 4921 upon merchant SWIPE.`;
-                sender = "CHASE-BANK";
-            }
-
-            await fetch('/api/webhooks/incoming', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type,
-                    sender,
-                    body,
-                    time: new Date().toISOString(),
-                    metadata: { device: 'Simulated Device' }
-                })
-            });
-            alert("Webhook dispatched successfully!");
-        } catch (e) {
-            alert("Failed to dispatch webhook");
-        }
-        setSimulating(false);
     };
 
     const clearAllData = async () => {
@@ -75,6 +40,38 @@ export default function SettingsCenter() {
         setClearing(false);
     };
 
+    const exportData = async () => {
+        setExporting(true);
+        try {
+            const supabase = getSupabase();
+            const queries = await Promise.all([
+                supabase.from('messages').select('*').limit(500),
+                supabase.from('otp_messages').select('*').limit(500),
+                supabase.from('bank_activity').select('*').limit(500)
+            ]);
+            
+            const data = {
+                messages: queries[0].data || [],
+                otp_messages: queries[1].data || [],
+                bank_activity: queries[2].data || [],
+                export_date: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `syncpro-export-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert("Failed to export data");
+        }
+        setExporting(false);
+    };
+
     return (
         <DashboardLayout>
             <div className="mb-8 px-2 max-w-3xl border-b border-slate-200 dark:border-slate-800 pb-8">
@@ -86,21 +83,6 @@ export default function SettingsCenter() {
             </div>
 
             <div className="max-w-3xl space-y-6">
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><Layout className="w-4 h-4" /> Interface Density</h3>
-                    
-                    <label className="flex items-center justify-between cursor-pointer group">
-                        <div>
-                            <p className="font-semibold text-slate-800 dark:text-slate-200">Compact View Mode</p>
-                            <p className="text-sm text-slate-500 mt-1">Reduces padding in lists and sidebars to show more dense information on screen.</p>
-                        </div>
-                        <div className="relative inline-flex items-center">
-                            <input type="checkbox" className="sr-only peer" checked={compactMode} onChange={(e) => setCompactMode(e.target.checked)} />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
-                        </div>
-                    </label>
-                </div>
-
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><Bell className="w-4 h-4" /> Session Alerts</h3>
                     
@@ -117,15 +99,19 @@ export default function SettingsCenter() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><Webhook className="w-4 h-4" /> Webhook Integration</h3>
-                    <div className="mb-4">
-                        <p className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Simulate Incoming Data</p>
-                        <p className="text-sm text-slate-500 mb-4">Trigger functional test webhooks across different payload types.</p>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button disabled={simulating} onClick={() => simulateWebhook('message')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test General</button>
-                            <button disabled={simulating} onClick={() => simulateWebhook('otp')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test OTP</button>
-                            <button disabled={simulating} onClick={() => simulateWebhook('bank')} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium transition-colors">Test Bank</button>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><HardDrive className="w-4 h-4" /> Data Management</h3>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">Export All Records</p>
+                            <p className="text-sm text-slate-500 mt-1 max-w-sm">Download a JSON backup of up to 500 recent records from all message categories.</p>
                         </div>
+                        <button 
+                            disabled={exporting}
+                            onClick={exportData}
+                            className="px-5 py-2.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center gap-2 font-medium text-sm transition-colors shadow-sm disabled:opacity-50"
+                        >
+                            <Download className="w-4 h-4" /> {exporting ? "Exporting..." : "Download JSON"}
+                        </button>
                     </div>
                 </div>
 
