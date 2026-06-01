@@ -51,7 +51,6 @@ export async function POST(req: Request) {
             sender,
             body: messageBody,
             time: time || new Date().toISOString(),
-            type,
             metadata: metadata || {}
         }]);
 
