@@ -1,6 +1,6 @@
 'use client';
 import { Sidebar } from "@/components/Sidebar";
-import { RefreshCcw, Landmark, Inbox, Search } from "lucide-react";
+import { RefreshCcw, Landmark, Inbox, Search, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { formatLocalTime } from "@/lib/timeUtils";
@@ -35,6 +35,31 @@ export default function BankActivity() {
             }
             return newSet;
         });
+    };
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        try {
+            const supabase = getSupabase();
+            const { error: pbError } = await supabase.from('bank_activity').delete().eq('id', id);
+            
+            if (pbError) {
+                console.warn("Delete remote error:", pbError);
+            }
+
+            setMessages(current => current.filter(m => m.id !== id));
+            
+            const stored = localStorage.getItem('sms_sync_bank_alerts');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    const updated = parsed.filter((m: any) => m.id !== id);
+                    localStorage.setItem('sms_sync_bank_alerts', JSON.stringify(updated));
+                } catch (err) {}
+            }
+        } catch (err) {
+            console.error("Failed to delete", err);
+        }
     };
 
     const fetchMessages = async () => {
@@ -139,6 +164,7 @@ export default function BankActivity() {
                                 <th className="p-4 font-bold">Details</th>
                                 <th className="p-4 font-bold">Time</th>
                                 <th className="p-4 font-bold text-right w-1/6">Amount</th>
+                                <th className="p-4 font-bold text-center w-12"></th>
                             </tr>
                         </thead>
                         {filteredMessages.length > 0 && (
@@ -171,6 +197,15 @@ export default function BankActivity() {
                                                         {isCredit ? '+' : isDebit ? '-' : ''}{formatAmount(msg.metadata.amount as any)}
                                                     </span>
                                                 )}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <button 
+                                                    onClick={(e) => handleDelete(e, msg.id)}
+                                                    className="text-slate-400 hover:text-rose-500 transition-colors"
+                                                    title="Delete Message"
+                                                >
+                                                    <Trash2 className="w-4 h-4 ml-auto" />
+                                                </button>
                                             </td>
                                         </tr>
                                     );

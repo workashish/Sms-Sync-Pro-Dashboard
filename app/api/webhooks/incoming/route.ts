@@ -78,7 +78,8 @@ export async function POST(req: NextRequest) {
                 try {
                     // Try decrypting with CryptoJS (supports standard AES outputs like those from Android/Web clients)
                     const CryptoJS = require("crypto-js");
-                    const bytes = CryptoJS.AES.decrypt(messageBody, aesKey);
+                    const safeBase64 = messageBody.replace(/ /g, '+');
+                    const bytes = CryptoJS.AES.decrypt(safeBase64, aesKey);
                     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
                     
                     if (!decrypted) {
@@ -101,15 +102,17 @@ export async function POST(req: NextRequest) {
                 tableName = 'bank_activity';
             }
 
-            const payload = {
+            const payload: any = {
                 id: crypto.randomUUID(),
                 sender,
                 body: messageBody,
                 time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                status: "Delivered",
-                metadata: metadata || null,
                 created_at: new Date().toISOString()
             };
+
+            if (tableName === 'otp_messages' || tableName === 'bank_activity') {
+                payload.metadata = metadata || null;
+            }
 
             const { error } = await supabase.from(tableName).insert([payload]);
 

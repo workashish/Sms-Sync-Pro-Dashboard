@@ -1,6 +1,6 @@
 'use client';
 import { Sidebar } from "@/components/Sidebar";
-import { RefreshCcw, ShieldAlert, Smartphone, Copy, Check, Inbox, Search } from "lucide-react";
+import { RefreshCcw, ShieldAlert, Smartphone, Copy, Check, Inbox, Search, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { formatLocalTime } from "@/lib/timeUtils";
@@ -36,6 +36,31 @@ export default function OTPCenter() {
             }
             return newSet;
         });
+    };
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        try {
+            const supabase = getSupabase();
+            const { error: pbError } = await supabase.from('otp_messages').delete().eq('id', id);
+            
+            if (pbError) {
+                console.warn("Delete remote error:", pbError);
+            }
+
+            setMessages(current => current.filter(m => m.id !== id));
+            
+            const stored = localStorage.getItem('sms_sync_otp_center');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    const updated = parsed.filter((m: any) => m.id !== id);
+                    localStorage.setItem('sms_sync_otp_center', JSON.stringify(updated));
+                } catch (err) {}
+            }
+        } catch (err) {
+            console.error("Failed to delete", err);
+        }
     };
 
     const fetchMessages = async () => {
@@ -182,9 +207,13 @@ export default function OTPCenter() {
                                         >
                                             {copiedId === msg.id ? 'COPIED!' : 'COPY CODE'}
                                         </button>
-                                        <div className="w-8 flex items-center justify-center bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded text-[10px] font-bold text-slate-400 dark:text-slate-500">
-                                            <Smartphone className="w-3 h-3" />
-                                        </div>
+                                        <button 
+                                            onClick={(e) => handleDelete(e, msg.id)}
+                                            className="w-8 flex items-center justify-center bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-500 transition-colors cursor-pointer"
+                                            title="Delete Message"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
                                     </div>
                                 </div>
                             )

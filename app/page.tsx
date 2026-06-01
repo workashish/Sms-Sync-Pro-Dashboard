@@ -1,6 +1,6 @@
 'use client';
 import { Sidebar } from "@/components/Sidebar";
-import { RefreshCcw, Smartphone, ShieldCheck, Inbox, Search } from "lucide-react";
+import { RefreshCcw, Smartphone, ShieldCheck, Inbox, Search, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { formatLocalTime } from "@/lib/timeUtils";
@@ -32,6 +32,37 @@ export default function Home() {
             }
             return newSet;
         });
+    };
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        try {
+            const supabase = getSupabase();
+            // Attempt remote delete
+            const { error: pbError } = await supabase.from('messages').delete().eq('id', id);
+            
+            // Allow silent failure or log if remote isn't ready
+            if (pbError) {
+                console.warn("Delete remote error (might not be configured):", pbError);
+            }
+
+            // Immediately update UI
+            setMessages(current => current.filter(m => m.id !== id));
+            
+            // Delete from local storage fallback
+            const stored = localStorage.getItem('sms_sync_live_feed');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    const updated = parsed.filter((m: any) => m.id !== id);
+                    localStorage.setItem('sms_sync_live_feed', JSON.stringify(updated));
+                } catch (err) {
+                    // Ignore
+                }
+            }
+        } catch (err) {
+            console.error("Failed to delete", err);
+        }
     };
 
     const fetchMessages = async () => {
@@ -182,7 +213,14 @@ export default function Home() {
                                     <div className="col-span-2 text-sm text-slate-500 dark:text-slate-500 font-mono">
                                         {formatLocalTime(msg.created_at, msg.time)}
                                     </div>
-                                    <div className="col-span-1 text-right flex justify-end">
+                                    <div className="col-span-1 text-right flex justify-end gap-3 items-center">
+                                        <button 
+                                            onClick={(e) => handleDelete(e, msg.id)}
+                                            className="text-slate-400 hover:text-rose-500 transition-colors"
+                                            title="Delete Message"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                         <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                                     </div>
                                 </div>
