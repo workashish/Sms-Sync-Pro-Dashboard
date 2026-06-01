@@ -1,5 +1,5 @@
 'use client';
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { Settings, Database, Info } from 'lucide-react';
 
 export default function SettingsCenter() {
@@ -7,9 +7,7 @@ export default function SettingsCenter() {
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
-            <Sidebar />
-            <main className="flex-1 overflow-auto p-8 relative">
+        <DashboardLayout>
                 <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 max-w-4xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-3">
@@ -58,7 +56,6 @@ export default function SettingsCenter() {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </DashboardLayout>
     )
 }

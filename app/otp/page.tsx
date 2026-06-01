@@ -1,5 +1,5 @@
 'use client';
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, ShieldAlert, Smartphone, Copy, Check, Inbox, Search, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
@@ -132,9 +132,7 @@ export default function OTPCenter() {
     );
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
-            <Sidebar />
-            <main className="flex-1 overflow-auto p-8 relative">
+        <DashboardLayout>
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
                         OTP Center
@@ -220,7 +218,6 @@ export default function OTPCenter() {
                         })}
                     </div>
                 )}
-            </main>
-        </div>
+            </DashboardLayout>
     )
 }

@@ -1,5 +1,5 @@
 'use client';
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, Smartphone, Inbox, Search, Trash2, LayoutList } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
@@ -108,9 +108,7 @@ export default function AllMessages() {
     );
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
-            <Sidebar />
-            <main className="flex-1 overflow-auto p-8 relative">
+        <DashboardLayout>
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">All Messages</h1>
                     <div className="flex items-center gap-3 w-full md:w-auto">
@@ -206,7 +204,6 @@ export default function AllMessages() {
                         </div>
                     )}
                 </div>
-            </main>
-        </div>
+            </DashboardLayout>
     )
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import hmacSHA256 from 'crypto-js/hmac-sha256';
 
 export async function POST(req: Request) {
     try {
@@ -14,8 +15,12 @@ export async function POST(req: Request) {
 
         const response = NextResponse.json({ success: true });
         
+        // Use Node crypto to create a secure hashed token to store in the cookie
+        // so we never store the plain text password in the browser
+        const token = hmacSHA256('session', correctPassword).toString();
+
         // Use Max-Age for 30 days
-        response.cookies.set('dashboard_auth', 'authenticated', {
+        response.cookies.set('dashboard_auth', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',

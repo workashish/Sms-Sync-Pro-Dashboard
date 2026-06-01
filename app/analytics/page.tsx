@@ -1,5 +1,5 @@
 'use client';
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { PieChart as PieChartIcon, BarChart2, Activity, MessageSquare, ShieldAlert, BadgeCent } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
@@ -51,9 +51,7 @@ export default function AnalyticsCenter() {
     }, []);
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
-            <Sidebar />
-            <main className="flex-1 overflow-auto p-8 relative">
+        <DashboardLayout>
                 <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-3">
                         <PieChartIcon className="w-6 h-6 text-blue-600 dark:text-blue-500" />
@@ -118,7 +116,6 @@ export default function AnalyticsCenter() {
                         </div>
                     </div>
                 )}
-            </main>
-        </div>
+            </DashboardLayout>
     )
 }

@@ -1,22 +1,25 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import SHA256 from 'crypto-js/sha256';
+import hmacSHA256 from 'crypto-js/hmac-sha256';
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Allow API routes to be bypassed or handle their own auth
-    if (pathname.startsWith('/api/') || pathname.startsWith('/_next') || pathname === '/login') {
+    if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/auth') || pathname.startsWith('/_next') || pathname === '/login') {
         return NextResponse.next();
     }
 
     // Check for authentication cookie
     const token = request.cookies.get('dashboard_auth')?.value;
+    const correctPassword = process.env.DASHBOARD_PASSWORD || "";
 
-    // We can't verify the exact password in middleware cleanly if it's hashed, 
-    // but if we just set a secure signed generic token upon login, we check here.
-    // For simplicity, we just check if it equals 'authenticated'.
-    // A better approach is checking it against an environment variable but cookie is set by server on successful login.
-    if (!token || token !== 'authenticated') {
+    // Fallback using crypto-js if node crypto is not available in edge runtime (though Next 14/15 polyfills some, crypto-js is safer cross-runtime for simple checks)
+    const expectedTokenJS = hmacSHA256('session', correctPassword).toString();
+
+    // Check if the token matches the expected hash
+    if (!token || token !== expectedTokenJS) {
         const url = request.nextUrl.clone();
         url.pathname = '/login';
         return NextResponse.redirect(url);
@@ -27,9 +30,8 @@ export function middleware(request: NextRequest) {
 
 export const config = {
     // Match all request paths except for the ones starting with:
-    // - api (API routes)
     // - _next/static (static files)
     // - _next/image (image optimization files)
     // - favicon.ico (favicon file)
-    matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+    matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
