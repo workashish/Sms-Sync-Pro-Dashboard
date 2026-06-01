@@ -73,7 +73,7 @@ export async function POST(req: Request) {
             sender,
             body: messageBody,
             time: time || new Date().toISOString(),
-            metadata: metadata || {}
+            metadata: { ...(metadata || {}), is_unread: true }
         }]);
 
         if (error) {

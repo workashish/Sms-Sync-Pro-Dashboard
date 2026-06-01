@@ -111,8 +111,8 @@ export default function AllMessagesCenter() {
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm max-w-lg">Comprehensive timeline of all synchronized messages across categories.</p>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="flex items-center gap-2 mt-4 md:mt-0">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                    <div className="flex items-center gap-2">
                         <button 
                             onClick={() => { setFilterUnread(!filterUnread); setPage(1); }} 
                             className={`p-2.5 rounded-xl border transition-colors shadow-sm flex items-center gap-2 text-sm font-medium ${filterUnread ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-500/20 dark:border-indigo-500/30 dark:text-indigo-400' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}
