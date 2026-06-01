@@ -135,12 +135,47 @@ export async function POST(req: NextRequest) {
 
             const supabase = getSupabase();
             
-            // Define table based on payload type
+            let messageClassifiedType = type;
+
+            // Auto-classification: override type based on content/sender
+            const textLower = messageBody.toLowerCase();
+            const senderLower = sender.toLowerCase();
+            
+            const bankKeywords = ['debited', 'credited', 'a/c', 'account', 'balance', 'emi', 'rs.', 'inr', 'available bal', 'amount', 'transaction'];
+            const isBankMessage = bankKeywords.some(kw => textLower.includes(kw));
+
+            const otpKeywords = ['otp', 'one time password', 'verification code', 'pin', 'activation code'];
+            // A simple regex to check for 4-8 digit codes alongside OTP terminology
+            const hasNumericCode = /\b\d{4,8}\b/.test(messageBody);
+            const isOtpMessage = otpKeywords.some(kw => textLower.includes(kw)) || (textLower.includes('code') && hasNumericCode);
+
+            // Give priority to bank classification if it has money/account info, even if it has an OTP, or vice-versa
+            if (isBankMessage && !isOtpMessage) {
+                messageClassifiedType = 'bank';
+            } else if (isOtpMessage && !isBankMessage) {
+                messageClassifiedType = 'otp';
+            } else if (isBankMessage && isOtpMessage) {
+                // If it has both, usually it's an OTP for a bank transaction (like "OTP for transaction of Rs 5000 is 123456")
+                // Such messages should ideally be classified as OTP because the primary action required is entering the OTP.
+                messageClassifiedType = 'otp';
+            }
+
+            // Define table based on classified payload type
             let tableName = 'messages';
-            if (type === 'otp') {
+            if (messageClassifiedType === 'otp') {
                 tableName = 'otp_messages';
-            } else if (type === 'bank') {
+            } else if (messageClassifiedType === 'bank') {
                 tableName = 'bank_activity';
+            }
+
+            let finalMetadata = { ...(metadata || {}) };
+
+            if (messageClassifiedType === 'otp' && !finalMetadata.code) {
+                // Try to extract a likely OTP code (4-8 consecutive digits)
+                const match = messageBody.match(/\b\d{4,8}\b/);
+                if (match) {
+                    finalMetadata.code = match[0];
+                }
             }
 
             const payload: any = {
@@ -152,10 +187,10 @@ export async function POST(req: NextRequest) {
             };
 
             if (tableName === 'otp_messages' || tableName === 'bank_activity') {
-                payload.metadata = metadata || null;
+                payload.metadata = Object.keys(finalMetadata).length > 0 ? finalMetadata : null;
             } else {
                 payload.status = "Delivered";
-                payload.metadata = metadata || null;
+                payload.metadata = Object.keys(finalMetadata).length > 0 ? finalMetadata : null;
             }
 
             const { error } = await supabase.from(tableName).insert([payload]);

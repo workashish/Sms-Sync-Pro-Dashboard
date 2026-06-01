@@ -49,12 +49,12 @@ export default function BankActivity() {
 
             setMessages(current => current.filter(m => m.id !== id));
             
-            const stored = localStorage.getItem('sms_sync_bank_alerts');
+            const stored = localStorage.getItem('sms_sync_bank_activity');
             if (stored) {
                 try {
                     const parsed = JSON.parse(stored);
                     const updated = parsed.filter((m: any) => m.id !== id);
-                    localStorage.setItem('sms_sync_bank_alerts', JSON.stringify(updated));
+                    localStorage.setItem('sms_sync_bank_activity', JSON.stringify(updated));
                 } catch (err) {}
             }
         } catch (err) {
@@ -115,7 +115,11 @@ export default function BankActivity() {
         };
     }, []);
 
-    const formatAmount = (amount: number) => `$${amount.toFixed(2)}`;
+    const formatAmount = (amount: number | string) => {
+        const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]+/g,"")) : amount;
+        if (isNaN(num)) return `$${amount}`;
+        return `$${num.toFixed(2)}`;
+    };
 
     const handleRefresh = () => {
         fetchMessages();
@@ -192,7 +196,7 @@ export default function BankActivity() {
                                                 {formatLocalTime(msg.created_at, msg.time)}
                                             </td>
                                             <td className="p-4 text-right">
-                                                {msg.metadata?.amount && (
+                                                {msg.metadata?.amount != null && (
                                                     <span className={`font-mono font-bold ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : isDebit ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-100'}`}>
                                                         {isCredit ? '+' : isDebit ? '-' : ''}{formatAmount(msg.metadata.amount as any)}
                                                     </span>

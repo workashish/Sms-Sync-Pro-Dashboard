@@ -8,6 +8,7 @@ export function Sidebar() {
     const pathname = usePathname();
     const links = [
         { name: "Live Feed", href: "/", icon: LayoutDashboard },
+        { name: "All Messages", href: "/all", icon: MessageSquare },
         { name: "OTP Center", href: "/otp", icon: ShieldAlert },
         { name: "Bank Activity", href: "/bank", icon: BadgeCent },
         { name: "Analytics", href: "/analytics", icon: PieChart },
