@@ -67,6 +67,21 @@ export default function Home() {
 
     useEffect(() => {
         fetchMessages();
+
+        const supabase = getSupabase();
+        const channel = supabase.channel('public:messages')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages' },
+                (payload) => {
+                    setMessages(current => [payload.new as Message, ...current]);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const handleRefresh = () => {
@@ -79,26 +94,26 @@ export default function Home() {
     );
 
     return (
-        <div className="flex h-screen bg-slate-50">
+        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
             <Sidebar />
             <main className="flex-1 overflow-auto p-8 relative">
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Live Feed</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Live Feed</h1>
                     <div className="flex items-center gap-3 w-full md:w-auto">
                         <div className="relative w-full md:w-72">
-                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                             <input
                                 type="text"
                                 placeholder="Search messages..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
+                                className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
                             />
                         </div>
                         <button 
                             onClick={handleRefresh}
                             disabled={loading}
-                            className="shrink-0 text-[10px] uppercase font-bold tracking-wider bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg flex items-center transition-colors text-slate-600 disabled:opacity-50 h-[38px]"
+                            className="shrink-0 text-[10px] uppercase font-bold tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-2 rounded-lg flex items-center transition-colors text-slate-600 dark:text-slate-400 disabled:opacity-50 h-[38px]"
                         >
                             <RefreshCcw className={`w-3 h-3 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                             Refresh
@@ -106,8 +121,8 @@ export default function Home() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px] flex flex-col">
-                    <div className="p-5 border-b border-slate-100 grid grid-cols-12 gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px] flex flex-col transition-colors">
+                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 grid grid-cols-12 gap-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                         <div className="col-span-3">Sender</div>
                         <div className="col-span-6">Message Body</div>
                         <div className="col-span-2">Time Received</div>
@@ -116,18 +131,18 @@ export default function Home() {
                     
                     {messages.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                                <Inbox className="w-8 h-8 text-slate-300" />
+                            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800">
+                                <Inbox className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                             </div>
-                            <h3 className="text-sm font-bold text-slate-700 mb-1">No incoming messages</h3>
-                            <p className="text-sm text-slate-500 max-w-sm mb-6">
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">No incoming messages</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6">
                                 Your SMS feed is awaiting data. Configure your relay provider to route messages to the webhook endpoint.
                             </p>
-                            <div className="bg-slate-50 border border-slate-200 rounded text-left p-4 w-full max-w-md">
-                                <p className="text-xs font-mono text-slate-600 break-all mb-2">
-                                    <span className="text-slate-400 select-none">POST</span> /api/webhooks/incoming
+                            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded text-left p-4 w-full max-w-md">
+                                <p className="text-xs font-mono text-slate-600 dark:text-slate-400 break-all mb-2">
+                                    <span className="text-slate-400 dark:text-slate-500 select-none">POST</span> /api/webhooks/incoming
                                 </p>
-                                <div className="text-[10px] font-mono text-slate-500 bg-white p-2 rounded border border-slate-100">
+                                <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800">
                                     {`{
   "sender": "+1...",
   "body": "Message content here..."
@@ -137,28 +152,28 @@ export default function Home() {
                         </div>
                     ) : filteredMessages.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <Search className="w-8 h-8 text-slate-300 mb-3" />
-                            <h3 className="text-sm font-bold text-slate-700 mb-1">No matches found</h3>
-                            <p className="text-sm text-slate-500 max-w-sm">
+                            <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-3" />
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">No matches found</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
                                 Try adjusting your search query.
                             </p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-100">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {filteredMessages.map(msg => (
-                                <div key={msg.id} className="p-5 grid grid-cols-12 gap-4 items-center hover:bg-slate-50 transition-colors">
-                                    <div className="col-span-3 font-medium text-slate-700 flex items-center">
-                                        <Smartphone className="w-4 h-4 mr-2 text-slate-400" />
+                                <div key={msg.id} className="p-5 grid grid-cols-12 gap-4 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <div className="col-span-3 font-medium text-slate-700 dark:text-slate-300 flex items-center">
+                                        <Smartphone className="w-4 h-4 mr-2 text-slate-400 dark:text-slate-500" />
                                         {msg.sender}
                                     </div>
-                                    <div className="col-span-6 text-sm text-slate-600 pr-4 truncate">
+                                    <div className="col-span-6 text-sm text-slate-600 dark:text-slate-400 pr-4 truncate">
                                         {msg.body}
                                     </div>
-                                    <div className="col-span-2 text-sm text-slate-500 font-mono">
+                                    <div className="col-span-2 text-sm text-slate-500 dark:text-slate-500 font-mono">
                                         {formatTime(msg.created_at, msg.time)}
                                     </div>
                                     <div className="col-span-1 text-right flex justify-end">
-                                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                        <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                                     </div>
                                 </div>
                             ))}
