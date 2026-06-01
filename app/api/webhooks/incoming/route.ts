@@ -50,6 +50,8 @@ export async function POST(req: Request) {
             id: crypto.randomUUID(),
             sender,
             body: messageBody,
+            time: time || new Date().toISOString(),
+            type,
             metadata: metadata || {}
         }]);
 
