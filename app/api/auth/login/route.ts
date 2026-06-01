@@ -6,7 +6,6 @@ export async function POST(req: Request) {
         const { password } = await req.json();
         const correctPassword = process.env.DASHBOARD_PASSWORD;
 
-        // Ensure password is set in env
         if (!correctPassword) {
             return NextResponse.json({ error: 'Dashboard password is not configured on the server. Please set DASHBOARD_PASSWORD.' }, { status: 500 });
         } else if (password !== correctPassword) {
@@ -14,12 +13,8 @@ export async function POST(req: Request) {
         }
 
         const response = NextResponse.json({ success: true });
-        
-        // Use Node crypto to create a secure hashed token to store in the cookie
-        // so we never store the plain text password in the browser
         const token = hmacSHA256('session', correctPassword).toString();
 
-        // Use Max-Age for 30 days
         response.cookies.set('dashboard_auth', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',

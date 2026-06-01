@@ -1,13 +1,12 @@
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { ThemeProvider } from '@/components/ThemeProvider';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata = {
-  title: 'SMS Sync Pro',
-  description: 'Dashboard for secure webhooks and SMS sync',
+export const metadata: Metadata = {
+  title: 'Sync Pro Dashboard',
+  description: 'Enterprise secure SMS synchronization gateway',
 };
 
 export default function RootLayout({
@@ -16,11 +15,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
-      <body className="antialiased bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 transition-colors duration-300">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
-        </ThemeProvider>
+    <html lang="en">
+      <body className={`${inter.className} min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased`}>
+        {children}
       </body>
     </html>
   );

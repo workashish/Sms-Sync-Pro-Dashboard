@@ -1,100 +1,31 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { RefreshCcw, Smartphone, ShieldCheck, Inbox, Search, Trash2 } from "lucide-react";
+import { RefreshCcw, Search, Inbox, ShieldAlert, Banknote, Clock, Maximize2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
-import { formatLocalTime } from "@/lib/timeUtils";
 
-interface Message {
-    id: string;
-    sender: string;
-    body: string;
-    time: string;
-    status: string;
-    created_at?: string;
-}
-
-export default function Home() {
-    const [loading, setLoading] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [error, setError] = useState<string | null>(null);
-
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-    const toggleExpand = (id: string) => {
-        setExpandedIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(id)) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
-    };
-
-    const handleDelete = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        try {
-            const supabase = getSupabase();
-            // Attempt remote delete
-            const { error: pbError } = await supabase.from('messages').delete().eq('id', id);
-            
-            // Allow silent failure or log if remote isn't ready
-            if (pbError) {
-                console.warn("Delete remote error (might not be configured):", pbError);
-            }
-
-            // Immediately update UI
-            setMessages(current => current.filter(m => m.id !== id));
-            
-            // Delete from local storage fallback
-            const stored = localStorage.getItem('sms_sync_live_feed');
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored);
-                    const updated = parsed.filter((m: any) => m.id !== id);
-                    localStorage.setItem('sms_sync_live_feed', JSON.stringify(updated));
-                } catch (err) {
-                    // Ignore
-                }
-            }
-        } catch (err) {
-            console.error("Failed to delete", err);
-        }
-    };
+export default function AllMessagesCenter() {
+    const [messages, setMessages] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const fetchMessages = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            setError(null);
-            
             const supabase = getSupabase();
-            const { data, error: pbError } = await supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: false });
-                
-            if (pbError) throw pbError;
+            const queries = await Promise.all([
+                supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(20),
+                supabase.from('otp_messages').select('*').order('created_at', { ascending: false }).limit(20),
+                supabase.from('bank_activity').select('*').order('created_at', { ascending: false }).limit(20)
+            ]);
             
-            if (data) {
-                // Map DB schema to UI schema if necessary, assuming 1:1 for simplicity
-                setMessages(data as any);
-            }
-        } catch (err: any) {
-            console.error("Failed to fetch messages from Supabase", err);
-            // Fallback to local storage if Supabase fails (e.g. not configured)
-            const stored = localStorage.getItem('sms_sync_live_feed');
-            if (stored) {
-                try {
-                    setMessages(JSON.parse(stored));
-                } catch (e) {
-                    console.error("Failed to parse local storage fallback");
-                }
-            } else {
-                setError(err.message || "Failed to load messages.");
-            }
+            const all = [...(queries[0].data || []), ...(queries[1].data || []), ...(queries[2].data || [])]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 50);
+            
+            setMessages(all);
+        } catch (e) {
+            console.error(e);
         } finally {
             setLoading(false);
         }
@@ -102,131 +33,78 @@ export default function Home() {
 
     useEffect(() => {
         fetchMessages();
-
-        const supabase = getSupabase();
-        const channel = supabase.channel('public:messages')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'messages' },
-                (payload) => {
-                    setMessages(current => [payload.new as Message, ...current]);
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, []);
 
-    const handleRefresh = () => {
-        fetchMessages();
-    };
-
-    const filteredMessages = messages.filter(msg => 
-        msg.sender.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        msg.body.toLowerCase().includes(searchQuery.toLowerCase())
+    const filtered = messages.filter(m => 
+        (m.body && m.body.toLowerCase().includes(searchTerm.toLowerCase())) || 
+        (m.sender && m.sender.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
         <DashboardLayout>
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Live Feed</h1>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <div className="relative w-full md:w-72">
-                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                            <input
-                                type="text"
-                                placeholder="Search messages..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
-                            />
-                        </div>
-                        <button 
-                            onClick={handleRefresh}
-                            disabled={loading}
-                            className="shrink-0 text-[10px] uppercase font-bold tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-2 rounded-lg flex items-center transition-colors text-slate-600 dark:text-slate-400 disabled:opacity-50 h-[38px]"
-                        >
-                            <RefreshCcw className={`w-3 h-3 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </button>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 px-2">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+                        Master Inbox 
+                        <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 text-xs py-1 px-2.5 rounded-full font-semibold">ALL</span>
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm max-w-lg">Comprehensive timeline of all synchronized messages across categories.</p>
                 </div>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search records..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all shadow-sm"
+                        />
+                    </div>
+                    <button onClick={fetchMessages} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300">
+                        <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
+            </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px] flex flex-col transition-colors">
-                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 grid grid-cols-12 gap-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                        <div className="col-span-3">Sender</div>
-                        <div className="col-span-6">Message Body</div>
-                        <div className="col-span-2">Time Received</div>
-                        <div className="col-span-1 text-right">Status</div>
-                    </div>
-                    
-                    {messages.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-800">
-                                <Inbox className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                            </div>
-                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">No incoming messages</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6">
-                                Your SMS feed is awaiting data. Configure your relay provider to route messages to the webhook endpoint.
-                            </p>
-                            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded text-left p-4 w-full max-w-md">
-                                <p className="text-xs font-mono text-slate-600 dark:text-slate-400 break-all mb-2">
-                                    <span className="text-slate-400 dark:text-slate-500 select-none">POST</span> /api/webhooks/incoming
-                                </p>
-                                <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded border border-slate-100 dark:border-slate-800">
-                                    {`{
-  "sender": "+1...",
-  "body": "Message content here..."
-}`}
-                                </div>
-                            </div>
-                        </div>
-                    ) : filteredMessages.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-3" />
-                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">No matches found</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
-                                Try adjusting your search query.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredMessages.map(msg => {
-                                const isExpanded = expandedIds.has(msg.id);
-                                return (
-                                <div 
-                                    key={msg.id} 
-                                    onClick={() => toggleExpand(msg.id)}
-                                    className="p-5 grid grid-cols-12 gap-4 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                                >
-                                    <div className="col-span-3 font-medium text-slate-700 dark:text-slate-300 flex items-center">
-                                        <Smartphone className="w-4 h-4 mr-2 text-slate-400 dark:text-slate-500" />
-                                        {msg.sender}
-                                    </div>
-                                    <div className={`col-span-6 text-sm text-slate-600 dark:text-slate-400 pr-4 ${isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
-                                        {msg.body}
-                                    </div>
-                                    <div className="col-span-2 text-sm text-slate-500 dark:text-slate-500 font-mono">
-                                        {formatLocalTime(msg.created_at, msg.time)}
-                                    </div>
-                                    <div className="col-span-1 text-right flex justify-end gap-3 items-center">
-                                        <button 
-                                            onClick={(e) => handleDelete(e, msg.id)}
-                                            className="text-slate-400 hover:text-rose-500 transition-colors"
-                                            title="Delete Message"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                        <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                                    </div>
-                                </div>
-                                );
-                            })}
-                        </div>
-                    )}
+            {loading ? (
+                <div className="flex flex-col justify-center items-center h-64 text-slate-400 space-y-4">
+                    <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm font-medium">Synchronizing records...</p>
                 </div>
-            </DashboardLayout>
+            ) : filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                        <Inbox className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">No records found</h3>
+                    <p className="text-slate-500 text-sm mt-1">Try adjusting your search criteria.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filtered.map((msg, i) => (
+                        <div key={i} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{msg.sender?.substring(0,2).toUpperCase()}</span>
+                                        </div>
+                                        <div className="truncate">
+                                            <p className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{msg.sender}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
+                                        <Clock className="w-3 h-3" />
+                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.body}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </DashboardLayout>
     )
 }

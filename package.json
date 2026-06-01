@@ -1,7 +1,4 @@
 {
-  "name": "applet",
-  "version": "1.0.0",
-  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,20 +6,22 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
-    "@tailwindcss/postcss": "latest",
     "crypto-js": "^4.2.0",
-    "lucide-react": "latest",
-    "next": "latest",
-    "next-themes": "^0.4.6",
-    "react": "latest",
-    "react-dom": "latest",
-    "tailwindcss": "latest"
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.17.0",
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
     "@types/crypto-js": "^4.2.2",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "typescript": "latest"
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3"
   }
 }
