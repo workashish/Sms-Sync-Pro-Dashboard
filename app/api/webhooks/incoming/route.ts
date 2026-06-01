@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Missing required fields: sender, body" }, { status: 400 });
             }
 
-            const aesKey = process.env.APP_AES_KEY;
+            const aesKey = process.env.APP_AES_PASSWORD || process.env.APP_AES_KEY;
             if (aesKey && typeof messageBody === 'string') {
                 try {
                     // Try decrypting with CryptoJS (supports standard AES outputs like those from Android/Web clients)
