@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { RefreshCcw, Landmark, Inbox, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { formatLocalTime } from "@/lib/timeUtils";
 
 interface BankMessage {
     id: string;
@@ -15,17 +16,6 @@ interface BankMessage {
         amount?: number;
     }
 }
-
-const formatTime = (isoString?: string, fallbackString?: string) => {
-    if (isoString) {
-        try {
-            return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch (e) {
-            // ignore
-        }
-    }
-    return fallbackString || "";
-};
 
 export default function BankActivity() {
     const [loading, setLoading] = useState(false);
@@ -158,7 +148,7 @@ export default function BankActivity() {
                                                 {msg.body}
                                             </td>
                                             <td className="p-4 text-slate-500 font-mono text-xs">
-                                                {formatTime(msg.created_at, msg.time)}
+                                                {formatLocalTime(msg.created_at, msg.time)}
                                             </td>
                                             <td className="p-4 text-right">
                                                 {msg.metadata?.amount && (

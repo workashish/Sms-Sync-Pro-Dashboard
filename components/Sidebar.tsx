@@ -11,7 +11,8 @@ export function Sidebar() {
         { name: "OTP Center", href: "/otp", icon: ShieldAlert },
         { name: "Bank Activity", href: "/bank", icon: BadgeCent },
         { name: "Analytics", href: "/analytics", icon: PieChart },
-        { name: "Logs & Settings", href: "/settings", icon: Settings },
+        { name: "System Logs", href: "/logs", icon: MessageSquare },
+        { name: "Settings", href: "/settings", icon: Settings },
     ];
 
     return (

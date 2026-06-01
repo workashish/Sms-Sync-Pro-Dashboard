@@ -142,6 +142,7 @@ export default function SettingsCenter() {
                                         <li><span className="font-bold dark:text-slate-300">messages</span> (id, sender, body, time, created_at)</li>
                                         <li><span className="font-bold dark:text-slate-300">otp_messages</span> (id, sender, body, time, created_at, metadata)</li>
                                         <li><span className="font-bold dark:text-slate-300">bank_activity</span> (id, sender, body, time, created_at, metadata)</li>
+                                        <li><span className="font-bold dark:text-slate-300">webhook_logs</span> (id, status, payload, error, created_at)</li>
                                     </ul>
                                 </div>
                             )}

@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { RefreshCcw, Smartphone, ShieldCheck, Inbox, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { formatLocalTime } from "@/lib/timeUtils";
 
 interface Message {
     id: string;
@@ -12,17 +13,6 @@ interface Message {
     status: string;
     created_at?: string;
 }
-
-const formatTime = (isoString?: string, fallbackString?: string) => {
-    if (isoString) {
-        try {
-            return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch (e) {
-            // ignore
-        }
-    }
-    return fallbackString || "";
-};
 
 export default function Home() {
     const [loading, setLoading] = useState(false);
@@ -170,7 +160,7 @@ export default function Home() {
                                         {msg.body}
                                     </div>
                                     <div className="col-span-2 text-sm text-slate-500 dark:text-slate-500 font-mono">
-                                        {formatTime(msg.created_at, msg.time)}
+                                        {formatLocalTime(msg.created_at, msg.time)}
                                     </div>
                                     <div className="col-span-1 text-right flex justify-end">
                                         <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />

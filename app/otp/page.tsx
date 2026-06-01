@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { RefreshCcw, ShieldAlert, Smartphone, Copy, Check, Inbox, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { formatLocalTime } from "@/lib/timeUtils";
 
 interface OtpMessage {
     id: string;
@@ -15,17 +16,6 @@ interface OtpMessage {
         expiry_mins?: number;
     }
 }
-
-const formatTime = (isoString?: string, fallbackString?: string) => {
-    if (isoString) {
-        try {
-            return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch (e) {
-            // ignore
-        }
-    }
-    return fallbackString || "";
-};
 
 export default function OTPCenter() {
     const [loading, setLoading] = useState(false);
@@ -162,7 +152,7 @@ export default function OTPCenter() {
                                             <h4 className="text-2xl font-bold font-mono tracking-widest text-slate-800 dark:text-slate-100 mt-1">{otpCode}</h4>
                                         </div>
                                         <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded font-mono">
-                                            {formatTime(msg.created_at, msg.time)}
+                                            {formatLocalTime(msg.created_at, msg.time)}
                                         </span>
                                     </div>
                                     

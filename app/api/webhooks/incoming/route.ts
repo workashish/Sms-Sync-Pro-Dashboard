@@ -1,48 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
-    try {
-        const body = await req.json();
-        const { type = 'message', sender, body: messageBody, time, metadata } = body;
+        let responsePayload: any = { error: "Unknown error" };
+        let statusCode: number = 500;
+        let isSuccess: boolean = false;
+        let rawBody = "";
 
-        if (!sender || !messageBody) {
-            return NextResponse.json({ error: "Missing required fields: sender, body" }, { status: 400 });
-        }
-
-        const supabase = getSupabase();
-        
-        // Define table based on payload type
-        let tableName = 'messages';
-        if (type === 'otp') {
-            tableName = 'otp_messages';
-        } else if (type === 'bank') {
-            tableName = 'bank_activity';
-        }
-
-        const payload = {
-            id: crypto.randomUUID(),
-            sender,
-            body: messageBody,
-            time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: "Delivered",
-            metadata: metadata || null,
-            created_at: new Date().toISOString()
+        const logRequest = async (payload: any, statusStr: string, errorStr?: string) => {
+            const supabase = getSupabase();
+            const redacted = payload ? { ...payload } : null;
+            if (redacted) {
+                if (redacted.body) redacted.body = typeof redacted.body === 'string' ? redacted.body.substring(0, 8) + "...[REDACTED]" : redacted.body;
+                if (redacted.sender) redacted.sender = typeof redacted.sender === 'string' ? redacted.sender.substring(0, 4) + "...[REDACTED]" : redacted.sender;
+                if (redacted.metadata?.code) redacted.metadata.code = "***";
+            }
+            await supabase.from('webhook_logs').insert([{
+                id: crypto.randomUUID(),
+                status: statusStr,
+                payload: redacted,
+                error: errorStr || null,
+                created_at: new Date().toISOString()
+            }]);
         };
 
-        const { error } = await supabase.from(tableName).insert([payload]);
+        try {
+            rawBody = await req.text();
+            
+            const secret = process.env.APP_HMAC_SECRET;
 
-        if (error) {
-            console.error("Supabase insert error:", error);
-            return NextResponse.json({ error: "Database error", details: error }, { status: 500 });
+            if (secret) {
+                const signature = req.headers.get("x-hmac-signature") || req.headers.get("x-signature");
+
+                if (!signature) {
+                    await logRequest(null, "error", "Missing HMAC signature");
+                    return NextResponse.json({ error: "Missing HMAC signature" }, { status: 401 });
+                }
+
+                const expectedSignature = crypto
+                    .createHmac("sha256", secret)
+                    .update(rawBody)
+                    .digest("hex");
+
+                try {
+                    if (
+                        signature.length !== expectedSignature.length ||
+                        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+                    ) {
+                        await logRequest(null, "error", "Invalid HMAC signature");
+                        return NextResponse.json({ error: "Invalid HMAC signature" }, { status: 401 });
+                    }
+                } catch (e) {
+                    await logRequest(null, "error", "Invalid HMAC signature");
+                    return NextResponse.json({ error: "Invalid HMAC signature" }, { status: 401 });
+                }
+            }
+
+            const body = JSON.parse(rawBody);
+            const { type = 'message', sender, body: messageBody, time, metadata } = body;
+
+            if (!sender || !messageBody) {
+                await logRequest(body, "error", "Missing required fields: sender, body");
+                return NextResponse.json({ error: "Missing required fields: sender, body" }, { status: 400 });
+            }
+
+            const supabase = getSupabase();
+            
+            // Define table based on payload type
+            let tableName = 'messages';
+            if (type === 'otp') {
+                tableName = 'otp_messages';
+            } else if (type === 'bank') {
+                tableName = 'bank_activity';
+            }
+
+            const payload = {
+                id: crypto.randomUUID(),
+                sender,
+                body: messageBody,
+                time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: "Delivered",
+                metadata: metadata || null,
+                created_at: new Date().toISOString()
+            };
+
+            const { error } = await supabase.from(tableName).insert([payload]);
+
+            if (error) {
+                console.error("Supabase insert error:", error);
+                await logRequest(body, "error", `Database error: ${error.message}`);
+                return NextResponse.json({ error: "Database error", details: error }, { status: 500 });
+            }
+
+            await logRequest(body, "success");
+            return NextResponse.json({ success: true, message: "Payload processed successfully" }, { status: 201 });
+        } catch (error: any) {
+            console.error("Webhook Error:", error);
+            await logRequest(rawBody ? { raw: rawBody } : null, "error", error.message || "Internal server error");
+            return NextResponse.json(
+                { error: error.message || "Internal server error" },
+                { status: 500 }
+            );
         }
-
-        return NextResponse.json({ success: true, message: "Payload processed successfully" }, { status: 201 });
-    } catch (error: any) {
-        console.error("Webhook Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
-    }
 }
