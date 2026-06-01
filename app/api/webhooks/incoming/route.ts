@@ -34,6 +34,28 @@ export async function POST(req: Request) {
         const { type = 'message', sender, time, metadata } = body;
         let messageBody = body.body;
 
+        const aesPassword = process.env.APP_AES_PASSWORD;
+        if (aesPassword && messageBody && messageBody.includes(':')) {
+            try {
+                const textParts = messageBody.split(':');
+                const iv = Buffer.from(textParts.shift()!, 'hex');
+                const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+                // Create a 32-byte key
+                let key;
+                if (aesPassword.length === 32) {
+                    key = Buffer.from(aesPassword, 'utf-8');
+                } else {
+                    key = crypto.createHash('sha256').update(aesPassword).digest();
+                }
+                const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+                let decrypted = decipher.update(encryptedText);
+                decrypted = Buffer.concat([decrypted, decipher.final()]);
+                messageBody = decrypted.toString('utf8');
+            } catch (decErr) {
+                console.error("Decryption error:", decErr);
+            }
+        }
+
         if (!sender || !messageBody) {
             await logRequest(body, "error", "Missing required fields");
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
