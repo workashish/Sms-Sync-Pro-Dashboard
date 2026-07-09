@@ -29,7 +29,20 @@ export default function OtpCodes() {
         }
     };
 
-    useEffect(() => { fetchMessages(); }, []);
+    useEffect(() => {
+        fetchMessages();
+        const supabase = getSupabase();
+        
+        const channel = supabase.channel('public:otp_messages')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'otp_messages' }, payload => {
+                fetchMessages();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const handleRefresh = () => {
         setPage(1);
@@ -116,13 +129,13 @@ export default function OtpCodes() {
                     </button>
                 </div>
             </div>
-            {loading && page === 1 && (
+            {loading && page === 1 && messages.length === 0 && (
                 <div className="flex flex-col justify-center items-center h-64 text-slate-400 space-y-4">
                     <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-sm font-medium">Synchronizing records...</p>
                 </div>
             )}
-            {!(loading && page === 1) && (
+            {!(loading && page === 1 && messages.length === 0) && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {paginatedMessages.length === 0 ? (
@@ -133,7 +146,10 @@ export default function OtpCodes() {
                     const isReminder = m.metadata?.is_reminder === true;
                     
                     return (
-                    <div key={m.id} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-orange-500' : 'border-slate-200 dark:border-slate-800'} shadow-sm flex flex-col justify-between group`}>
+                    <div 
+                        key={m.id} 
+                        className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-orange-500' : 'border-slate-200 dark:border-slate-800'} shadow-sm flex flex-col justify-between group`}
+                    >
                         <div>
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
@@ -142,7 +158,7 @@ export default function OtpCodes() {
                                     </div>
                                     <span className={`font-bold text-slate-900 dark:text-slate-100 truncate ${isUnread ? 'font-black' : ''}`}>{m.sender}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                                <div className="flex items-center gap-2 text-xs font-mono text-slate-400 opacity-80 group-hover:opacity-100 transition-opacity">
                                     <button 
                                         disabled={updating === m.id}
                                         onClick={() => toggleMetadata(m, 'is_reminder')} 
@@ -195,8 +211,8 @@ export default function OtpCodes() {
                                 <span>{m.metadata.device}</span>
                             </div>
                         )}
-                    </div>
-                )})}
+                        </div>
+                    )})}
             </div>
             
             {!loading && totalPages > 1 && (

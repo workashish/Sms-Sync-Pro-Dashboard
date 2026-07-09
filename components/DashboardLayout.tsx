@@ -5,6 +5,7 @@ import { Menu, Activity } from "lucide-react";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
     return (
         <div className="flex flex-col lg:flex-row h-screen bg-slate-50 dark:bg-slate-950 transition-colors overflow-hidden font-sans selection:bg-indigo-500/30">
             {isMobileMenuOpen && (

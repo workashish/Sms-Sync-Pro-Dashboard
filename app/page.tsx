@@ -46,6 +46,24 @@ export default function AllMessagesCenter() {
 
     useEffect(() => {
         fetchMessages();
+
+        const supabase = getSupabase();
+        
+        const channel = supabase.channel('public:all_messages')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
+                fetchMessages();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'otp_messages' }, payload => {
+                fetchMessages();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bank_activity' }, payload => {
+                fetchMessages();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const handleRefresh = () => {
@@ -142,13 +160,15 @@ export default function AllMessagesCenter() {
                 </div>
             </div>
 
-            {loading ? (
+            {loading && messages.length === 0 ? (
                 <div className="flex flex-col justify-center items-center h-64 text-slate-400 space-y-4">
                     <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-sm font-medium">Synchronizing records...</p>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                <div 
+                    className="flex flex-col items-center justify-center py-20 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700"
+                >
                     <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                         <Inbox className="w-8 h-8 text-slate-400" />
                     </div>
@@ -162,7 +182,10 @@ export default function AllMessagesCenter() {
                         const isReminder = msg.metadata?.is_reminder === true;
                         
                         return (
-                        <div key={msg.id} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-indigo-500' : 'border-slate-200/60 dark:border-slate-800/60'} shadow-sm hover:shadow-md transition-all group flex flex-col justify-between`}>
+                        <div 
+                            key={msg.id} 
+                            className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-indigo-500' : 'border-slate-200/60 dark:border-slate-800/60'} shadow-sm hover:shadow-md transition-all group flex flex-col justify-between`}
+                        >
                             <div>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
@@ -176,7 +199,7 @@ export default function AllMessagesCenter() {
                                             {msg._table === 'otp_messages' ? 'OTP' : msg._table === 'bank_activity' ? 'Bank' : 'General'}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
+                                    <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 opacity-80 group-hover:opacity-100 transition-opacity">
                                         <button 
                                             disabled={updating === msg.id}
                                             onClick={() => toggleMetadata(msg, 'is_reminder')} 
