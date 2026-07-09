@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Activity, Inbox, ShieldCheck, PieChart, Settings, LayoutDashboard, LogOut, X, RefreshCw } from "lucide-react";
@@ -6,6 +7,14 @@ import { Activity, Inbox, ShieldCheck, PieChart, Settings, LayoutDashboard, LogO
 export function Sidebar({ onClose }: { onClose?: () => void }) {
     const pathname = usePathname();
     const router = useRouter();
+
+    const [origin, setOrigin] = useState('');
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setOrigin(window.location.origin);
+        }
+    }, []);
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
@@ -60,6 +69,23 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                     )
                 })}
             </nav>
+            <div className="p-4 mx-3 mb-3 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl space-y-2">
+                <h3 className="text-xs font-semibold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5"><ShieldCheck className="w-3 h-3"/> App Setup</h3>
+                <div className="space-y-2 text-xs">
+                    <div>
+                        <span className="text-slate-500 dark:text-slate-400 block mb-0.5">Webhook URL:</span>
+                        <code className="px-1.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded text-indigo-600 dark:text-indigo-400 block break-all font-mono text-[10px] select-all cursor-text">
+                            {origin ? `${origin}/api/webhooks/incoming` : '/api/webhooks/incoming'}
+                        </code>
+                    </div>
+                    <div>
+                        <span className="text-slate-500 dark:text-slate-400 block mb-0.5">AES Key:</span>
+                        <div className="px-1.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded text-slate-600 dark:text-slate-400 block text-[10px]">
+                            Check <span className="font-mono text-indigo-600 dark:text-indigo-400">APP_AES_PASSWORD</span> on server
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div className="mt-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200/50 dark:border-slate-800/50">
                 <button 
                     onClick={handleLogout}
