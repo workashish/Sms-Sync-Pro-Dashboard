@@ -10,9 +10,9 @@ export async function GET() {
         // Query the most recent message that looks like a Bharat Taxi OTP
         const { data, error } = await supabase
             .from('otp_messages')
-            .select('body, time')
+            .select('body, time, created_at')
             .or('body.ilike.%Bharat Taxi%,body.ilike.%Sahakar Taxi%')
-            .order('time', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(1);
             
         if (error) {
@@ -38,6 +38,7 @@ export async function GET() {
                 success: true,
                 code: match[1],
                 time: data[0].time,
+                created_at: data[0].created_at,
                 raw_message: messageBody
             });
         } else {
