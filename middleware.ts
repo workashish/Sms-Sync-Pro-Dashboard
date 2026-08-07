@@ -5,7 +5,7 @@ import hmacSHA256 from 'crypto-js/hmac-sha256';
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/auth') || pathname.startsWith('/_next') || pathname === '/login') {
+    if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/otp') || pathname.startsWith('/_next') || pathname === '/login') {
         return NextResponse.next();
     }
 
