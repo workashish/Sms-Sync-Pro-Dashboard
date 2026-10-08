@@ -2,27 +2,32 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Activity, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { getRecords, messageTables } from "@/lib/data-client";
 
 export default function LiveFeed() {
     const [events, setEvents] = useState<any[]>([]);
 
+    const [error, setError] = useState<string | null>(null);
     useEffect(() => {
-        const supabase = getSupabase();
-        const handleInsert = (payload: any) => {
-            const newEvent = { ...payload.new, _table: payload.table };
-            setEvents(prev => [newEvent, ...prev].slice(0, 50));
+        let active = true;
+        let pending = false;
+        const refresh = async () => {
+            if (pending) return;
+            pending = true;
+            try {
+                const { data } = await getRecords('all_messages', 50, { arrival: true });
+                if (active) { setEvents(data); setError(null); }
+            } catch { if (active) setError('Unable to load live feed. Retrying…'); }
+            finally { pending = false; }
         };
-
-        const c1 = supabase.channel('live_msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, handleInsert).subscribe();
-        const c2 = supabase.channel('live_otp').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'otp_messages' }, handleInsert).subscribe();
-        const c3 = supabase.channel('live_bank').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bank_activity' }, handleInsert).subscribe();
-
-        return () => { supabase.removeChannel(c1); supabase.removeChannel(c2); supabase.removeChannel(c3); };
+        refresh();
+        const interval = window.setInterval(refresh, 5000);
+        return () => { active = false; window.clearInterval(interval); };
     }, []);
 
     return (
         <DashboardLayout>
+            {error && <p role="alert" className="mb-4 text-rose-600">{error}</p>}
             <div className="mb-8 px-2 max-w-4xl mx-auto text-center mt-8">
                 <div className="inline-flex items-center justify-center p-2 mb-4 bg-emerald-50 dark:bg-emerald-500/10 rounded-full border border-emerald-100 dark:border-emerald-500/20">
                     <div className="flex items-center gap-2 px-3">

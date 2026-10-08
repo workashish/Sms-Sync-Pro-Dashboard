@@ -1,4 +1,6 @@
+import { parseMessage } from '@/lib/message-parser';
 import { NextResponse } from 'next/server';
+import { isAuthenticated } from '@/lib/auth';
 import { getSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -6,15 +8,17 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function GET() {
+    if (!(await isAuthenticated())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     try {
         const supabase = getSupabase();
         
         // Query the most recent message that looks like a Bharat Taxi OTP
         const { data, error } = await supabase
             .from('otp_messages')
-            .select('body, time, created_at')
+            .select('body, time, created_at, received_at, metadata')
             .or('body.ilike.%Bharat Taxi%,body.ilike.%Sahakar Taxi%')
-            .order('created_at', { ascending: false })
+            .gte('received_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+            .order('received_at', { ascending: false })
             .limit(1);
             
         if (error) {
@@ -49,7 +53,8 @@ export async function GET() {
         const messageBody = data[0].body;
         
         // Extract 4-digit code using regex
-        const match = messageBody.match(/\b(\d{4})\b/);
+        const code = data[0].metadata?.code || parseMessage(messageBody).code;
+        const match = typeof code === 'string' && /^\d{4}$/.test(code) ? [code, code] : null;
         
         if (match && match[1]) {
             return NextResponse.json({ 
@@ -82,6 +87,6 @@ export async function GET() {
         }
 
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Unable to fetch OTP" }, { status: 500 });
     }
 }

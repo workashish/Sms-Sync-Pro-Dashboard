@@ -2,37 +2,36 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Settings, Check, Monitor, Layout, Bell, Database, HardDrive, Trash2, Webhook, Send, Download } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { purgeRecords, exportRecords } from "@/lib/data-client";
 
 export default function SettingsCenter() {
-    const [notifications, setNotifications] = useState(true);
+    const [notifications, setNotifications] = useState(false);
     const [saved, setSaved] = useState(false);
     const [clearing, setClearing] = useState(false);
     const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
-        const storedNotif = localStorage.getItem('syncpro_notifications') !== 'false';
+        const storedNotif = localStorage.getItem('syncpro_notifications') === 'true';
         setNotifications(storedNotif);
     }, []);
 
-    const saveSettings = () => {
+    const saveSettings = async () => {
+        if (notifications) {
+            if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') { alert('Notifications are blocked. Allow them in your browser settings to enable alerts.'); return; }
+        }
         localStorage.setItem('syncpro_notifications', String(notifications));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-        window.location.reload();
+        window.dispatchEvent(new Event("syncpro-preferences"));
     };
 
     const clearAllData = async () => {
         if (!confirm("Are you sure you want to delete ALL messages and logs? This is irreversible.")) return;
         setClearing(true);
         try {
-            const supabase = getSupabase();
-            await Promise.all([
-                supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-                supabase.from('otp_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-                supabase.from('bank_activity').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-                supabase.from('webhook_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-            ]);
+            await purgeRecords();
             alert("All database tables cleared.");
         } catch (e) {
             alert("Failed to clear database");
@@ -43,29 +42,11 @@ export default function SettingsCenter() {
     const exportData = async () => {
         setExporting(true);
         try {
-            const supabase = getSupabase();
-            const queries = await Promise.all([
-                supabase.from('messages').select('*').limit(500),
-                supabase.from('otp_messages').select('*').limit(500),
-                supabase.from('bank_activity').select('*').limit(500)
-            ]);
-            
-            const data = {
-                messages: queries[0].data || [],
-                otp_messages: queries[1].data || [],
-                bank_activity: queries[2].data || [],
-                export_date: new Date().toISOString()
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `syncpro-export-${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const { id } = await exportRecords();
+            const link = document.createElement('a');
+            link.href = `/api/export?id=${encodeURIComponent(id)}`;
+            link.download = `syncpro-export-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link); link.click(); link.remove();
         } catch (e) {
             alert("Failed to export data");
         }
@@ -89,7 +70,7 @@ export default function SettingsCenter() {
                     <label className="flex items-center justify-between cursor-pointer group">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">Browser Notifications</p>
-                            <p className="text-sm text-slate-500 mt-1">Play sound or show toasts for incoming synced payloads (experimental).</p>
+                            <p className="text-sm text-slate-500 mt-1">Show a browser notification when a new message arrives. Message contents stay hidden.</p>
                         </div>
                         <div className="relative inline-flex items-center">
                             <input type="checkbox" className="sr-only peer" checked={notifications} onChange={(e) => setNotifications(e.target.checked)} />
@@ -103,7 +84,7 @@ export default function SettingsCenter() {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">Export All Records</p>
-                            <p className="text-sm text-slate-500 mt-1 max-w-sm">Download a JSON backup of up to 500 recent records from all message categories.</p>
+                            <p className="text-sm text-slate-500 mt-1 max-w-sm">Download a complete JSON backup of all retained message records.</p>
                         </div>
                         <button 
                             disabled={exporting}
@@ -135,7 +116,7 @@ export default function SettingsCenter() {
                 <div className="pt-4 flex items-center gap-4">
                     <button onClick={saveSettings} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors shadow-sm flex items-center gap-2">
                         {saved && <Check className="w-4 h-4" />}
-                        {saved ? "Saved Globally" : "Apply Preferences"}
+                        {saved ? "Saved for This Browser" : "Apply Preferences"}
                     </button>
                     <p className="text-xs text-slate-400">Settings are persisted locally to this device browser.</p>
                 </div>

@@ -2,7 +2,7 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PieChart as PieChartIcon, Activity, MessageSquare, KeyRound, Banknote } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { getAnalytics } from "@/lib/data-client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Pie, PieChart, Cell } from "recharts";
 
 interface DailyCount {
@@ -15,61 +15,19 @@ interface DailyCount {
 export default function AnalyticsCenter() {
     const [counts, setCounts] = useState({ messages: 0, otp: 0, bank: 0 });
     const [chartData, setChartData] = useState<DailyCount[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             setLoading(true);
             try {
-                const supabase = getSupabase();
                 
-                // Fetch totals (using count)
-                const [{ count: c1 }, { count: c2 }, { count: c3 }] = await Promise.all([
-                    supabase.from('messages').select('*', { count: 'exact', head: true }),
-                    supabase.from('otp_messages').select('*', { count: 'exact', head: true }),
-                    supabase.from('bank_activity').select('*', { count: 'exact', head: true })
-                ]);
-                
-                setCounts({
-                    messages: c1 || 0,
-                    otp: c2 || 0,
-                    bank: c3 || 0
-                });
-
-                // Fetch recent records to build a generic time-series chart (last 7 days approx)
-                const [mRes, oRes, bRes] = await Promise.all([
-                    supabase.from('messages').select('created_at').order('created_at', { ascending: false }).limit(500),
-                    supabase.from('otp_messages').select('created_at').order('created_at', { ascending: false }).limit(500),
-                    supabase.from('bank_activity').select('created_at').order('created_at', { ascending: false }).limit(500)
-                ]);
-
-                // Group by date
-                const grouped: Record<string, DailyCount> = {};
-                
-                // Seed last 7 days
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    const dateStr = d.toISOString().slice(0, 10);
-                    grouped[dateStr] = { date: dateStr, messages: 0, otp: 0, bank: 0 };
-                }
-
-                const processData = (data: any[] | null, key: 'messages'|'otp'|'bank') => {
-                    if (!data) return;
-                    data.forEach(item => {
-                        const dateStr = item.created_at.slice(0, 10);
-                        if (grouped[dateStr]) {
-                            grouped[dateStr][key]++;
-                        }
-                    });
-                };
-
-                processData(mRes.data, 'messages');
-                processData(oRes.data, 'otp');
-                processData(bRes.data, 'bank');
-
-                setChartData(Object.values(grouped));
+                const result = await getAnalytics();
+                setCounts(result.counts);
+                setChartData(result.days);
             } catch (e) {
+                setError("Unable to load analytics. Please retry.");
                 console.error("Failed to load analytics: ", e);
             }
             setLoading(false);
@@ -87,6 +45,7 @@ export default function AnalyticsCenter() {
 
     return (
         <DashboardLayout>
+            {error && <p role="alert" className="mb-4 text-rose-600">{error}</p>}
             <div className="mb-8 px-2 flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">

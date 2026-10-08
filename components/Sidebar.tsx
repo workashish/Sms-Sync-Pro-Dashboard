@@ -17,7 +17,8 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     }, []);
 
     const handleLogout = async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        const response = await fetch('/api/auth/logout', { method: 'POST' });
+        if (!response.ok) { alert('Logout failed. Please retry to revoke this session.'); return; }
         router.push('/login');
         router.refresh();
     };
@@ -42,7 +43,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                     <span className="font-bold text-slate-800 dark:text-slate-100 tracking-tight text-lg">Sync Pro</span>
                 </div>
                 {onClose && (
-                    <button onClick={onClose} className="lg:hidden p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors">
+                    <button aria-label="Close navigation" onClick={onClose} className="lg:hidden p-2 -mr-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 )}

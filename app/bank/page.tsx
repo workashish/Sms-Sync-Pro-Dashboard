@@ -1,12 +1,16 @@
 'use client';
+import { MessageBody } from "@/components/MessageBody";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, ShieldCheck, Banknote, Clock, Trash2, Smartphone, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Bell, BellRing, Filter } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { useState, useEffect, useRef } from "react";
+import { getRecords, deleteRecord, updateMetadata } from "@/lib/data-client";
 
 export default function BankActivity() {
     const [messages, setMessages] = useState<any[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const requestSequence = useRef(0);
     const [page, setPage] = useState(1);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [updating, setUpdating] = useState<string | null>(null);
@@ -18,30 +22,27 @@ export default function BankActivity() {
     const ITEMS_PER_PAGE = 12;
     
     const fetchMessages = async () => {
+        const sequence = ++requestSequence.current;
         setLoading(true);
+        setError(null);
         try {
-            const supabase = getSupabase();
-            const { data } = await supabase.from('bank_activity').select('*').order('created_at', { ascending: false }).limit(500);
-            if(data) setMessages(data);
+            const { data, count } = await getRecords('bank_activity', ITEMS_PER_PAGE, { offset: (page - 1) * ITEMS_PER_PAGE, search: '', unread: filterUnread, reminder: filterReminder });
+            if (sequence !== requestSequence.current) return;
+            setMessages(data || []);
+            setTotalCount(count || 0);
+        } catch (e) {
+            setError("Unable to load messages. Please retry.");
         } finally {
-            setLoading(false);
+            if (sequence === requestSequence.current) setLoading(false);
         }
     };
 
     useEffect(() => {
         fetchMessages();
-        const supabase = getSupabase();
         
-        const channel = supabase.channel('public:bank_activity')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'bank_activity' }, payload => {
-                fetchMessages();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []);
+        const interval = window.setInterval(fetchMessages, 5000);
+        return () => { ++requestSequence.current; window.clearInterval(interval); };
+    }, [page, filterUnread, filterReminder]);
 
     const handleRefresh = () => {
         setPage(1);
@@ -51,10 +52,12 @@ export default function BankActivity() {
     const handleDelete = async (id: string) => {
         setDeleting(id);
         try {
-            const supabase = getSupabase();
-            await supabase.from('bank_activity').delete().eq('id', id);
+            await deleteRecord('bank_activity', id);
             setMessages(prev => prev.filter(m => m.id !== id));
+            setTotalCount(count => Math.max(0, count - 1));
+            await fetchMessages();
         } catch (e) {
+            setError("Unable to update messages. Please retry.");
             console.error(e);
         } finally {
             setDeleting(null);
@@ -64,14 +67,15 @@ export default function BankActivity() {
     const toggleMetadata = async (msg: any, key: string) => {
         setUpdating(msg.id);
         try {
-            const supabase = getSupabase();
             const currentMeta = msg.metadata || {};
             const newValue = !currentMeta[key];
             const updatedMeta = { ...currentMeta, [key]: newValue };
             
-            await supabase.from('bank_activity').update({ metadata: updatedMeta }).eq('id', msg.id);
+            await updateMetadata('bank_activity', msg.id, key, newValue);
             setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, metadata: updatedMeta } : m));
+            await fetchMessages();
         } catch (e) {
+            setError("Unable to update messages. Please retry.");
             console.error(e);
         } finally {
             setUpdating(null);
@@ -87,11 +91,13 @@ export default function BankActivity() {
         return true;
     });
 
-    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-    const paginatedMessages = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+    const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+    useEffect(() => { if (!loading) setPage(p => Math.min(p, totalPages)); }, [totalPages, loading]);
+    const paginatedMessages = messages;
 
     return (
         <DashboardLayout>
+            {error && <p role="alert" className="mb-4 text-rose-600">{error}</p>}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 px-2">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
@@ -112,7 +118,7 @@ export default function BankActivity() {
                     >
                         <Bell className="w-4 h-4" /> Reminders
                     </button>
-                    <button onClick={handleRefresh} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300">
+                    <button aria-label="Refresh messages" onClick={handleRefresh} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300">
                         <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
@@ -136,7 +142,7 @@ export default function BankActivity() {
                     return (
                     <div 
                         key={m.id} 
-                        className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-emerald-500' : 'border-slate-200 dark:border-slate-800'} shadow-sm flex flex-col justify-between group`}
+                        className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 ${isUnread ? 'border-l-4 border-l-emerald-500' : 'border-slate-200 dark:border-slate-800'} shadow-sm flex flex-col justify-between group`}
                     >
                         <div>
                             <div className="flex items-center justify-between mb-3">
@@ -175,14 +181,14 @@ export default function BankActivity() {
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mb-2">
                                 <Clock className="w-3 h-3" />
-                                {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                {new Date(m.received_at || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
                             </div>
-                            <p className={`text-slate-600 dark:text-slate-300 text-sm whitespace-pre-wrap break-words ${isUnread ? 'font-medium text-slate-800 dark:text-slate-200' : ''}`}>{m.body}</p>
+                            <MessageBody body={m.body} unread={isUnread} />
                         </div>
-                        {m.metadata?.device && (
+                        {m.metadata?.device_model && (
                             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                                 <Smartphone className="w-3.5 h-3.5" />
-                                <span>{m.metadata.device}</span>
+                                <span>{m.metadata.device_model}</span>
                             </div>
                         )}
                     </div>

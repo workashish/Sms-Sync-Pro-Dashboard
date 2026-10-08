@@ -2,18 +2,21 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { LayoutDashboard, CheckCircle2, XCircle, Clock, RefreshCcw } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { getRecords } from "@/lib/data-client";
 
 export default function LogsCenter() {
     const [logs, setLogs] = useState<any[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     const fetchLogs = async () => {
         setLoading(true);
-        const supabase = getSupabase();
-        const { data } = await supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(50);
+        setError(null);
+        try {
+        const { data } = await getRecords('webhook_logs', 50);
         if (data) setLogs(data);
-        setLoading(false);
+        } catch { setError("Unable to load logs. Please retry."); }
+        finally { setLoading(false); }
     };
 
     useEffect(() => {
@@ -22,6 +25,7 @@ export default function LogsCenter() {
 
     return (
         <DashboardLayout>
+            {error && <p role="alert" className="mb-4 text-rose-600">{error}</p>}
             <div className="mb-8 px-2 flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">

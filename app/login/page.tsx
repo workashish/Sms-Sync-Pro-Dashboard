@@ -88,7 +88,7 @@ export default function LoginPage() {
             </div>
             
             <p className="mt-8 text-xs text-slate-400 text-center uppercase tracking-wider font-bold">
-                End-to-End Encrypted Sync Gateway
+                Private SMS Sync Dashboard
             </p>
         </div>
     );

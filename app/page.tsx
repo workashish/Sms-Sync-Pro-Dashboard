@@ -1,11 +1,15 @@
 'use client';
+import { MessageBody } from "@/components/MessageBody";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, Search, Inbox, ShieldAlert, Banknote, Clock, Maximize2, Trash2, Smartphone, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Bell, BellRing, Filter } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { useState, useEffect, useRef } from "react";
+import { getRecords, deleteRecord, updateMetadata } from "@/lib/data-client";
 
 export default function AllMessagesCenter() {
     const [messages, setMessages] = useState<any[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const requestSequence = useRef(0);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
@@ -19,52 +23,29 @@ export default function AllMessagesCenter() {
     const ITEMS_PER_PAGE = 12;
 
     const fetchMessages = async () => {
+        const sequence = ++requestSequence.current;
         setLoading(true);
+        setError(null);
         try {
-            const supabase = getSupabase();
-            const limit = 500; // fetch enough for client-side pagination / sorting
-            const queries = await Promise.all([
-                supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(limit),
-                supabase.from('otp_messages').select('*').order('created_at', { ascending: false }).limit(limit),
-                supabase.from('bank_activity').select('*').order('created_at', { ascending: false }).limit(limit)
-            ]);
-            
-            const normalize = (data: any[], table: string) => (data || []).map(d => ({ ...d, _table: table }));
-            const all = [
-                ...normalize(queries[0].data, 'messages'), 
-                ...normalize(queries[1].data, 'otp_messages'), 
-                ...normalize(queries[2].data, 'bank_activity')
-            ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            
-            setMessages(all);
+            const { data, count } = await getRecords('all_messages', ITEMS_PER_PAGE, { offset: (page - 1) * ITEMS_PER_PAGE, search: searchTerm, unread: filterUnread, reminder: filterReminder });
+            if (sequence !== requestSequence.current) return;
+            setMessages(data || []);
+            setTotalCount(count || 0);
         } catch (e) {
+            setError("Unable to update messages. Please retry.");
             console.error(e);
         } finally {
-            setLoading(false);
+            if (sequence === requestSequence.current) setLoading(false);
         }
     };
 
     useEffect(() => {
         fetchMessages();
 
-        const supabase = getSupabase();
         
-        const channel = supabase.channel('public:all_messages')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
-                fetchMessages();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'otp_messages' }, payload => {
-                fetchMessages();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'bank_activity' }, payload => {
-                fetchMessages();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, []);
+        const interval = window.setInterval(fetchMessages, 5000);
+        return () => { ++requestSequence.current; window.clearInterval(interval); };
+    }, [page, searchTerm, filterUnread, filterReminder]);
 
     const handleRefresh = () => {
         setPage(1);
@@ -74,10 +55,12 @@ export default function AllMessagesCenter() {
     const handleDelete = async (id: string, table: string) => {
         setDeleting(id);
         try {
-            const supabase = getSupabase();
-            await supabase.from(table).delete().eq('id', id);
+            await deleteRecord(table, id);
             setMessages(prev => prev.filter(m => m.id !== id));
+            setTotalCount(count => Math.max(0, count - 1));
+            await fetchMessages();
         } catch (e) {
+            setError("Unable to update messages. Please retry.");
             console.error(e);
         } finally {
             setDeleting(null);
@@ -87,14 +70,15 @@ export default function AllMessagesCenter() {
     const toggleMetadata = async (msg: any, key: string) => {
         setUpdating(msg.id);
         try {
-            const supabase = getSupabase();
             const currentMeta = msg.metadata || {};
             const newValue = !currentMeta[key];
             const updatedMeta = { ...currentMeta, [key]: newValue };
             
-            await supabase.from(msg._table).update({ metadata: updatedMeta }).eq('id', msg.id);
+            await updateMetadata(msg._table, msg.id, key, newValue);
             setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, metadata: updatedMeta } : m));
+            await fetchMessages();
         } catch (e) {
+            setError("Unable to update messages. Please retry.");
             console.error(e);
         } finally {
             setUpdating(null);
@@ -116,11 +100,13 @@ export default function AllMessagesCenter() {
         return true;
     });
 
-    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-    const paginatedMessages = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+    const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+    useEffect(() => { if (!loading) setPage(p => Math.min(p, totalPages)); }, [totalPages, loading]);
+    const paginatedMessages = messages;
 
     return (
         <DashboardLayout>
+            {error && <p role="alert" className="mb-4 text-rose-600">{error}</p>}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 px-2">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
@@ -148,13 +134,13 @@ export default function AllMessagesCenter() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search records..."
+                            aria-label="Search message records" placeholder="Search records..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all shadow-sm"
                         />
                     </div>
-                    <button onClick={handleRefresh} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300">
+                    <button aria-label="Refresh messages" onClick={handleRefresh} className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300">
                         <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
@@ -184,7 +170,7 @@ export default function AllMessagesCenter() {
                         return (
                         <div 
                             key={msg.id} 
-                            className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border ${isUnread ? 'border-l-4 border-l-indigo-500' : 'border-slate-200/60 dark:border-slate-800/60'} shadow-sm hover:shadow-md transition-all group flex flex-col justify-between`}
+                            className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 ${isUnread ? 'border-l-4 border-l-indigo-500' : 'border-slate-200/60 dark:border-slate-800/60'} shadow-sm hover:shadow-md transition-all group flex flex-col justify-between`}
                         >
                             <div>
                                 <div className="flex items-center justify-between mb-3">
@@ -228,14 +214,14 @@ export default function AllMessagesCenter() {
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mb-2">
                                     <Clock className="w-3 h-3" />
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                    {new Date(msg.received_at || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
                                 </div>
-                                <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isUnread ? 'text-slate-800 dark:text-slate-200 font-medium' : 'text-slate-600 dark:text-slate-300'}`}>{msg.body}</p>
+                                <MessageBody body={msg.body} unread={isUnread} />
                             </div>
-                            {msg.metadata?.device && (
+                            {msg.metadata?.device_model && (
                                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                                     <Smartphone className="w-3.5 h-3.5" />
-                                    <span>{msg.metadata.device}</span>
+                                    <span>{msg.metadata.device_model}</span>
                                 </div>
                             )}
                         </div>
