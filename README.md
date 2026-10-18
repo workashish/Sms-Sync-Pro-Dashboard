@@ -120,6 +120,8 @@ npm start
 
 Production should be served over HTTPS. A successful build does not validate production database credentials or automatically apply the schema.
 
+For an existing installation already using the current base schema, [supabase/realtime_migration.sql](supabase/realtime_migration.sql) applies only the Realtime grants, claim policies and publication membership.
+
 ## Environment variables
 
 See [.env.example](.env.example). Never commit `.env.local` or secret values.
