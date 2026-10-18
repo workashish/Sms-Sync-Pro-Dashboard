@@ -2,8 +2,9 @@
 import { MessageBody } from "@/components/MessageBody";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, ShieldCheck, Banknote, Clock, Trash2, Smartphone, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Bell, BellRing, Filter } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getRecords, deleteRecord, updateMetadata } from "@/lib/data-client";
+import { RealtimeMessage, useRealtimeMessage, useRealtimeReconcile } from '@/lib/realtime-events';
 
 export default function BankActivity() {
     const [messages, setMessages] = useState<any[]>([]);
@@ -21,7 +22,7 @@ export default function BankActivity() {
 
     const ITEMS_PER_PAGE = 12;
     
-    const fetchMessages = async () => {
+    const fetchMessages = useCallback(async () => {
         const sequence = ++requestSequence.current;
         setLoading(true);
         setError(null);
@@ -35,14 +36,25 @@ export default function BankActivity() {
         } finally {
             if (sequence === requestSequence.current) setLoading(false);
         }
-    };
+    }, [page, filterUnread, filterReminder]);
 
     useEffect(() => {
-        fetchMessages();
-        
-        const interval = window.setInterval(fetchMessages, 5000);
-        return () => { ++requestSequence.current; window.clearInterval(interval); };
-    }, [page, filterUnread, filterReminder]);
+        void fetchMessages();
+        return () => { ++requestSequence.current; };
+    }, [fetchMessages]);
+
+    const realtimeIds = useRef(new Set<string>());
+    const onMessage = useCallback((message: RealtimeMessage) => {
+        if (message._table !== 'bank_activity' || realtimeIds.current.has(message.id)) return;
+        realtimeIds.current.add(message.id);
+        const metadata = message.metadata || {};
+        if ((filterUnread && metadata.is_unread !== true) || (filterReminder && metadata.is_reminder !== true)) return;
+        setTotalCount(count => count + 1);
+        if (page === 1) setMessages(current => [message, ...current.filter(item => item.id !== message.id)].slice(0, ITEMS_PER_PAGE));
+        setError(null);
+    }, [filterReminder, filterUnread, page]);
+    useRealtimeMessage(onMessage);
+    useRealtimeReconcile(fetchMessages);
 
     const handleRefresh = () => {
         setPage(1);

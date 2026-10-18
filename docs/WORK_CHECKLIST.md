@@ -14,6 +14,7 @@
 - [x] Encrypted settings/messages/logs, keyed deduplication fingerprints, bounded retention, no cloud/device backups
 - [x] Server pagination/search/flags and complete snapshot streaming export; full timezone-aware analytics
 - [x] Opt-in permission-aware browser notifications without sensitive contents
+- [x] RLS-protected Supabase Realtime updates, five-minute tokens, reconnect reconciliation and no periodic dashboard polling
 - [x] Transactional message/audit writes and purge; real PostgreSQL/RLS verification
 - [x] SHA-256/package/version/signer update validation; persistent failure feedback and explicit installer action
 - [x] Compile/target SDK 35; direct APK distribution and OS restrictions documented

@@ -1,14 +1,16 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Settings, Check, Monitor, Layout, Bell, Database, HardDrive, Trash2, Webhook, Send, Download } from "lucide-react";
+import { Settings, Check, Bell, Database, HardDrive, Trash2, Download, RadioTower } from "lucide-react";
 import { useState, useEffect } from "react";
 import { purgeRecords, exportRecords } from "@/lib/data-client";
+import { RealtimeStatus } from '@/components/RealtimeStatus';
 
 export default function SettingsCenter() {
     const [notifications, setNotifications] = useState(false);
     const [saved, setSaved] = useState(false);
     const [clearing, setClearing] = useState(false);
     const [exporting, setExporting] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => {
         const storedNotif = localStorage.getItem('syncpro_notifications') === 'true';
@@ -17,12 +19,13 @@ export default function SettingsCenter() {
 
     const saveSettings = async () => {
         if (notifications) {
-            if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
+            if (!('Notification' in window)) { setNotice('This browser does not support notifications.'); return; }
             const permission = await Notification.requestPermission();
-            if (permission !== 'granted') { alert('Notifications are blocked. Allow them in your browser settings to enable alerts.'); return; }
+            if (permission !== 'granted') { setNotice('Notifications are blocked. Allow them in your browser settings to enable alerts.'); return; }
         }
         localStorage.setItem('syncpro_notifications', String(notifications));
         setSaved(true);
+        setNotice('Preferences saved for this browser.');
         setTimeout(() => setSaved(false), 2000);
         window.dispatchEvent(new Event("syncpro-preferences"));
     };
@@ -32,9 +35,9 @@ export default function SettingsCenter() {
         setClearing(true);
         try {
             await purgeRecords();
-            alert("All database tables cleared.");
+            setNotice("All dashboard records were deleted.");
         } catch (e) {
-            alert("Failed to clear database");
+            setNotice("The database could not be cleared. Please retry.");
         }
         setClearing(false);
     };
@@ -48,7 +51,7 @@ export default function SettingsCenter() {
             link.download = `syncpro-export-${new Date().toISOString().slice(0,10)}.json`;
             document.body.appendChild(link); link.click(); link.remove();
         } catch (e) {
-            alert("Failed to export data");
+            setNotice("The export could not be created. Please retry.");
         }
         setExporting(false);
     };
@@ -64,10 +67,21 @@ export default function SettingsCenter() {
             </div>
 
             <div className="max-w-3xl space-y-6">
+                {notice && <div role="status" aria-live="polite" className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">{notice}</div>}
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-4 flex items-center gap-2"><RadioTower className="w-4 h-4" /> Live Updates</h2>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">Supabase Realtime</p>
+                            <p className="text-sm text-slate-500 mt-1">The dashboard receives new records over one secure WebSocket connection.</p>
+                        </div>
+                        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"><RealtimeStatus /></div>
+                    </div>
+                </div>
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><Bell className="w-4 h-4" /> Session Alerts</h3>
                     
-                    <label className="flex items-center justify-between cursor-pointer group">
+                    <label className="flex items-start justify-between gap-4 cursor-pointer group sm:items-center">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">Browser Notifications</p>
                             <p className="text-sm text-slate-500 mt-1">Show a browser notification when a new message arrives. Message contents stay hidden.</p>
@@ -81,7 +95,7 @@ export default function SettingsCenter() {
 
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest mb-6 flex items-center gap-2"><HardDrive className="w-4 h-4" /> Data Management</h3>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">Export All Records</p>
                             <p className="text-sm text-slate-500 mt-1 max-w-sm">Download a complete JSON backup of all retained message records.</p>
@@ -98,7 +112,7 @@ export default function SettingsCenter() {
 
                 <div className="bg-red-50 dark:bg-red-500/10 p-6 rounded-2xl border border-red-200 dark:border-red-900/50 shadow-sm">
                     <h3 className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Database className="w-4 h-4" /> Danger Zone</h3>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">Purge Data Storage</p>
                             <p className="text-sm text-slate-500 mt-1 max-w-sm">Permanently delete all messages, auth codes, and synchronization logs from the database.</p>
@@ -113,7 +127,7 @@ export default function SettingsCenter() {
                     </div>
                 </div>
 
-                <div className="pt-4 flex items-center gap-4">
+                <div className="pt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <button onClick={saveSettings} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors shadow-sm flex items-center gap-2">
                         {saved && <Check className="w-4 h-4" />}
                         {saved ? "Saved for This Browser" : "Apply Preferences"}

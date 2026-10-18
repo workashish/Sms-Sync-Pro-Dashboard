@@ -32,6 +32,10 @@ test('real database RLS, atomic ingest, idempotency, pagination, full export, ti
   await client.query('savepoint denied');await client.query('set local role anon');
   await assert.rejects(client.query('select * from public.messages'));
   await client.query('rollback to savepoint denied');
+  await client.query('set local role authenticated');
+  assert.equal((await client.query('select count(*) from public.messages')).rows[0].count,'0','Authenticated clients without the dashboard claim see no SMS rows');
+  await client.query(`set local request.jwt.claims='{"dashboard_access":true}'`);
+  assert.equal((await client.query('select count(*) from public.messages')).rows[0].count,'600','The short-lived dashboard claim enables Realtime reads');
   await client.query('rollback');
  } finally { await client.end(); }
 });

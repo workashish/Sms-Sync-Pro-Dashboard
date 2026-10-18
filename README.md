@@ -49,9 +49,10 @@ Implemented:
 - Session-owned snapshot exports streamed in bounded pages.
 - Content deletion, transactional purge and automatic 30-day retention maintenance.
 - Opt-in browser notifications with private notification text.
+- Direct Supabase Realtime updates with short-lived, read-only dashboard tokens.
 - Responsive navigation, accessible mobile menu controls and expandable long messages.
 
-The current product is not multi-tenant and has no per-user permissions, device pairing or native desktop client. Bank/OTP parsing uses heuristics; it does not verify bank balances, transactions or OTP validity with the originating provider. Live updates currently use **five-second polling**, not WebSockets, Supabase Realtime or APNs.
+The current product is not multi-tenant and has no per-user permissions, device pairing or native desktop client. Bank/OTP parsing uses heuristics; it does not verify bank balances, transactions or OTP validity with the originating provider.
 
 ## Architecture
 
@@ -72,11 +73,17 @@ flowchart TD
     Ledger --> DB
     Audit --> DB
     API -->|Paginated data and aggregates| Browser
+    Browser -->|Short-lived authenticated WebSocket| Realtime[Supabase Realtime]
+    Messages -->|Postgres INSERT events| Realtime
+    Audit -->|Postgres INSERT events| Realtime
+    Realtime -->|RLS-filtered row payloads| Browser
 ```
 
 `lib/supabase.ts` creates the server-only privileged client. `middleware.ts` checks cookie signatures/expiry before pages and protected APIs. API handlers independently validate active database sessions, so middleware is not the sole protection. Webhook ingestion uses HMAC authentication rather than the browser cookie.
 
-The deployment has three distinct configuration layers: application source on GitHub, runtime environment on Vercel, and schema/privileges in Supabase. Updating one does not automatically update the others.
+The initial page and reconciliation queries use authenticated server APIs. After login, `/api/realtime/token` returns a five-minute `authenticated` JWT carrying the `dashboard_access` claim plus the browser-safe project key. The browser opens one Supabase WebSocket and receives `INSERT` payloads directly. It never receives the service-role key, database URL, signing secret, HMAC secret or AES password. The UI reconciles once after subscription, browser focus, tab resume or network recovery to recover changes that occurred while the browser was suspended; there is no periodic data polling.
+
+The deployment has three distinct configuration layers: application source on GitHub, runtime environment on Vercel, and schema/privileges/publication settings in Supabase. Updating one does not automatically update the others.
 
 ## Quick start
 
@@ -121,6 +128,8 @@ See [.env.example](.env.example). Never commit `.env.local` or secret values.
 | --- | --- | --- |
 | `SUPABASE_URL` | Yes | Project API URL, such as `https://your-project.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Privileged **server-only** database API key for that same project |
+| `SUPABASE_PUBLISHABLE_KEY` | For Realtime | Browser-safe publishable key; a legacy anon key is also accepted through the documented fallback variables |
+| `SUPABASE_JWT_SECRET` | For Realtime | Server-only legacy project JWT secret used to sign five-minute read-only Realtime tokens |
 | `DASHBOARD_PASSWORD` | Yes | Shared owner password; required for login/protected routes |
 | `APP_HMAC_SECRET` | For ingestion | Must match the Android packaged HMAC value exactly |
 | `APP_AES_PASSWORD` | For encrypted ingestion | Must match the Android packaged AES password exactly |
@@ -128,9 +137,12 @@ See [.env.example](.env.example). Never commit `.env.local` or secret values.
 | `DASHBOARD_ORIGIN` | Optional | Public origin used by request-origin checks, e.g. `https://thesms.vercel.app` |
 | `AUTH_TRUST_PROXY` | Optional; default false | Trust forwarded client IP only behind an ingress that overwrites it |
 | `NEXT_PUBLIC_SUPABASE_URL` | Legacy fallback | Used for URL only when `SUPABASE_URL` is absent; prefer the server variable |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Legacy fallback | Existing browser-safe project key names accepted by the token endpoint |
 | `TEST_DATABASE_URL` | SQL tests only | Connection URL to a **disposable** PostgreSQL test database |
 
-The code expects the privileged key under `SUPABASE_SERVICE_ROLE_KEY`. A server secret key or compatible legacy service-role key belongs here; an anon/publishable key cannot perform the service-only operations. Do not prefix this secret with `NEXT_PUBLIC_`. A browser anon key is not required by the dashboard's current architecture.
+The code expects the privileged key under `SUPABASE_SERVICE_ROLE_KEY`. A server secret key or compatible legacy service-role key belongs here; an anon/publishable key cannot perform the service-only operations. Do not prefix this secret with `NEXT_PUBLIC_`. Only the separate publishable/anon key returned by the authenticated token endpoint is safe for the browser.
+
+`SUPABASE_JWT_SECRET` is never returned to the browser. It signs tokens whose database role is only `authenticated`; RLS additionally requires `dashboard_access=true`. Tokens expire after five minutes and refresh while the dashboard remains open. Keep this variable server-only and rotate it using Supabase's documented JWT-key procedure.
 
 `VERCEL=1` is detected automatically for trusted proxy handling. On other deployments leave `AUTH_TRUST_PROXY=false` unless the proxy replaces client-supplied forwarding headers. Untrusted direct deployments share one login-limit scope.
 
@@ -140,7 +152,7 @@ Do not include a path or trailing application route in `DASHBOARD_ORIGIN`; use t
 
 Run the whole script, not only the message table definitions. It includes table alterations, views, service-only functions, grants and a final PostgREST schema reload notification. Some functions are replaced later in the script; the final definitions are the effective implementation.
 
-The script executes within `BEGIN`/`COMMIT`, creates missing objects, preserves existing message rows during migration, adds/backfills receipt timestamps and enables RLS. It revokes inherited PUBLIC/anon/authenticated privileges on application objects and grants required operations to `service_role`. It changes access privileges, so another application that previously queried these tables anonymously must migrate to authorized server access.
+The script executes within `BEGIN`/`COMMIT`, creates missing objects, preserves existing message rows during migration, adds/backfills receipt timestamps and enables RLS. It revokes inherited PUBLIC/anon privileges, grants service operations to `service_role`, grants authenticated read access only to the four Realtime source tables, and applies a `dashboard_access` claim policy. It idempotently adds those tables to the `supabase_realtime` publication. Another application cannot read them with a normal authenticated token unless its JWT contains the server-issued claim.
 
 For a self-hosted/disposable PostgreSQL environment, the Supabase roles must exist and PostgreSQL must support security-invoker views; tests use PostgreSQL 17. Supabase provides the roles already.
 
@@ -384,7 +396,7 @@ The Bharat Taxi API requires login and filters original `received_at` to the las
 
 ### Browser notifications
 
-Notifications are opt-in, require browser permission, and contain a generic new-message notice rather than sender/body/OTP text. The first poll establishes a baseline without notifying historical content. The component compares the latest arrival and uses localStorage to reduce duplicate alerts across tabs.
+Notifications are opt-in, require browser permission, and contain a generic new-message notice rather than sender/body/OTP text. Only a newly delivered Realtime event creates a notification, so historical rows and reconnect reconciliation do not trigger alerts. The component records the latest event identity in localStorage to reduce duplicate alerts across tabs.
 
 It is not guaranteed to issue one notification per message during a burst, and it is not a browser-independent background push service. Closing the page, browser throttling, denied permissions, Focus modes and provider restrictions affect notifications. A native macOS companion is future work.
 

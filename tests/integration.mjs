@@ -4,17 +4,19 @@ import crypto from 'node:crypto';
 import { databaseApi, pool } from './support/database-api.mjs';
 const api=await databaseApi(4319);
 await pool.query('delete from public.dashboard_sessions; delete from public.login_attempts; select public.purge_dashboard(); delete from public.message_receipts');
-const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','4318'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:4319',SUPABASE_SERVICE_ROLE_KEY:'test-service-key',DASHBOARD_PASSWORD:'test-dashboard-password',APP_HMAC_SECRET:'test-hmac',APP_AES_PASSWORD:'test-aes'},stdio:'ignore'});
+const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','4318'],{env:{...process.env,SUPABASE_URL:'http://127.0.0.1:4319',SUPABASE_SERVICE_ROLE_KEY:'test-service-key',SUPABASE_PUBLISHABLE_KEY:'test-public-key',SUPABASE_JWT_SECRET:'test realtime JWT signing secret with enough entropy',DASHBOARD_PASSWORD:'test-dashboard-password',APP_HMAC_SECRET:'test-hmac',APP_AES_PASSWORD:'test-aes'},stdio:'ignore'});
 const base='http://127.0.0.1:4318';
 try{
  let ready=false;for(let i=0;i<100;i++){try{if((await fetch(base+'/login')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert(ready);
- for(const path of ['/api/data/messages','/api/otp/bharat-taxi','/api/analytics','/api/export']){
+ for(const path of ['/api/data/messages','/api/otp/bharat-taxi','/api/analytics','/api/export','/api/realtime/token']){
   assert.equal((await fetch(base+path)).status,401);
   assert.equal((await fetch(base+path,{headers:{'x-middleware-subrequest':'middleware:middleware:middleware:middleware:middleware'}})).status,401);
  }
  assert.equal((await fetch(base+'/api/auth/login',{method:'POST',body:JSON.stringify({password:'wrong'})})).status,401);
  const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:base},body:JSON.stringify({password:'test-dashboard-password'})});assert.equal(login.status,200);
  const cookie=login.headers.get('set-cookie').split(';')[0];
+ const realtime=await fetch(base+'/api/realtime/token',{headers:{cookie}});assert.equal(realtime.status,200);
+ const realtimeConfig=await realtime.json();assert.equal(realtimeConfig.publicKey,'test-public-key');assert.equal(JSON.parse(Buffer.from(realtimeConfig.token.split('.')[1],'base64url')).dashboard_access,true);
  assert.equal((await fetch(base+'/api/data/messages',{headers:{cookie}})).status,200);
  assert.equal((await fetch(base+'/api/data/unknown',{headers:{cookie}})).status,404);
  assert.equal((await fetch(base+'/api/data/messages?limit=501',{headers:{cookie}})).status,400);

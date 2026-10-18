@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Activity, Inbox, ShieldCheck, PieChart, Settings, LayoutDashboard, LogOut, X, RefreshCw } from "lucide-react";
+import { RealtimeStatus } from './RealtimeStatus';
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
     const pathname = usePathname();
@@ -70,6 +71,9 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                     )
                 })}
             </nav>
+            <div className="mx-4 mb-3 rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-950/50">
+                <RealtimeStatus />
+            </div>
             <div className="p-4 mx-3 mb-3 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl space-y-2">
                 <h3 className="text-xs font-semibold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5"><ShieldCheck className="w-3 h-3"/> App Setup</h3>
                 <div className="space-y-2 text-xs">

@@ -1,15 +1,16 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { LayoutDashboard, CheckCircle2, XCircle, Clock, RefreshCcw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getRecords } from "@/lib/data-client";
+import { RealtimeLog, useRealtimeLog, useRealtimeReconcile } from '@/lib/realtime-events';
 
 export default function LogsCenter() {
     const [logs, setLogs] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -17,11 +18,17 @@ export default function LogsCenter() {
         if (data) setLogs(data);
         } catch { setError("Unable to load logs. Please retry."); }
         finally { setLoading(false); }
-    };
+    }, []);
 
     useEffect(() => {
-        fetchLogs();
+        void fetchLogs();
+    }, [fetchLogs]);
+    const onLog = useCallback((log: RealtimeLog) => {
+        setLogs(current => [log, ...current.filter(item => item.id !== log.id)].slice(0, 50));
+        setError(null);
     }, []);
+    useRealtimeLog(onLog);
+    useRealtimeReconcile(fetchLogs);
 
     return (
         <DashboardLayout>
@@ -37,6 +44,7 @@ export default function LogsCenter() {
                 <button 
                     onClick={fetchLogs} 
                     disabled={loading}
+                    aria-label="Refresh system logs"
                     className="p-2.5 bg-white dark:bg-slate-900 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm text-slate-600 dark:text-slate-300"
                 >
                     <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -49,8 +57,8 @@ export default function LogsCenter() {
                         <p className="text-sm text-slate-500 font-medium">No system logs available yet.</p>
                     </div>
                 ) : (
-                    logs.map((log, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
+                    logs.map(log => (
+                        <div key={log.id} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
                             <div className="flex-shrink-0 mt-1">
                                 {log.status === 'success' ? (
                                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />

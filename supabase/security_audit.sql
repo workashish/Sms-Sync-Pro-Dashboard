@@ -1,4 +1,5 @@
--- Read-only production verification. Every exposed table/view below must deny anon/authenticated.
+-- Read-only production verification. Anon must have no privileges. Authenticated may SELECT
+-- the four Realtime source tables, but their RLS policy must require dashboard_access=true.
 select object, role, has_table_privilege(role, object, 'SELECT') as can_read,
     has_table_privilege(role, object, 'INSERT') as can_insert, has_table_privilege(role, object, 'UPDATE') as can_update,
     has_table_privilege(role, object, 'DELETE') as can_delete
@@ -11,3 +12,7 @@ select n.nspname,p.proname,pg_get_userbyid(p.proowner) as owner,
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef;
 select tablename, policyname, roles, cmd, qual, with_check from pg_policies
 where schemaname='public' and tablename in ('messages','otp_messages','bank_activity','webhook_logs','dashboard_sessions','login_attempts');
+select schemaname,tablename from pg_publication_tables
+where pubname='supabase_realtime' and schemaname='public'
+    and tablename in ('messages','otp_messages','bank_activity','webhook_logs')
+order by tablename;

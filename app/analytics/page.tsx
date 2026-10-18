@@ -1,8 +1,9 @@
 'use client';
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PieChart as PieChartIcon, Activity, MessageSquare, KeyRound, Banknote } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getAnalytics } from "@/lib/data-client";
+import { RealtimeMessage, useRealtimeMessage, useRealtimeReconcile } from '@/lib/realtime-events';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Pie, PieChart, Cell } from "recharts";
 
 interface DailyCount {
@@ -18,23 +19,29 @@ export default function AnalyticsCenter() {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchAnalytics = async () => {
-            setLoading(true);
-            try {
-                
-                const result = await getAnalytics();
-                setCounts(result.counts);
-                setChartData(result.days);
-            } catch (e) {
-                setError("Unable to load analytics. Please retry.");
-                console.error("Failed to load analytics: ", e);
-            }
-            setLoading(false);
-        };
-
-        fetchAnalytics();
+    const fetchAnalytics = useCallback(async () => {
+        setLoading(true);
+        try {
+            const result = await getAnalytics();
+            setCounts(result.counts);
+            setChartData(result.days);
+            setError(null);
+        } catch (e) {
+            setError("Unable to load analytics. Please retry.");
+            console.error("Failed to load analytics: ", e);
+        }
+        setLoading(false);
     }, []);
+    useEffect(() => { void fetchAnalytics(); }, [fetchAnalytics]);
+    const onMessage = useCallback((message: RealtimeMessage) => {
+        const key = message._table === 'otp_messages' ? 'otp' : message._table === 'bank_activity' ? 'bank' : 'messages';
+        setCounts(current => ({ ...current, [key]: current[key] + 1 }));
+        const day = new Date(message.received_at || message.created_at).toLocaleDateString('en-CA');
+        setChartData(current => current.map(item => item.date === day ? { ...item, [key]: item[key] + 1 } : item));
+        setError(null);
+    }, []);
+    useRealtimeMessage(onMessage);
+    useRealtimeReconcile(fetchAnalytics);
 
     const COLORS = ['#6366f1', '#f97316', '#10b981'];
     const pieData = [
@@ -97,7 +104,7 @@ export default function AnalyticsCenter() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Traffic Overview */}
-                        <div className="col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                             <h3 className="text-slate-800 dark:text-slate-200 font-bold mb-6 flex items-center gap-2">
                                 <Activity className="w-4 h-4 text-slate-400" /> Last 7 Days Volume
                             </h3>

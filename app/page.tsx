@@ -2,8 +2,9 @@
 import { MessageBody } from "@/components/MessageBody";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RefreshCcw, Search, Inbox, ShieldAlert, Banknote, Clock, Maximize2, Trash2, Smartphone, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Bell, BellRing, Filter } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { getRecords, deleteRecord, updateMetadata } from "@/lib/data-client";
+import { RealtimeMessage, useRealtimeMessage, useRealtimeReconcile } from '@/lib/realtime-events';
 
 export default function AllMessagesCenter() {
     const [messages, setMessages] = useState<any[]>([]);
@@ -12,6 +13,7 @@ export default function AllMessagesCenter() {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const deferredSearch = useDeferredValue(searchTerm);
     const [page, setPage] = useState(1);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [updating, setUpdating] = useState<string | null>(null);
@@ -22,12 +24,12 @@ export default function AllMessagesCenter() {
 
     const ITEMS_PER_PAGE = 12;
 
-    const fetchMessages = async () => {
+    const fetchMessages = useCallback(async () => {
         const sequence = ++requestSequence.current;
         setLoading(true);
         setError(null);
         try {
-            const { data, count } = await getRecords('all_messages', ITEMS_PER_PAGE, { offset: (page - 1) * ITEMS_PER_PAGE, search: searchTerm, unread: filterUnread, reminder: filterReminder });
+            const { data, count } = await getRecords('all_messages', ITEMS_PER_PAGE, { offset: (page - 1) * ITEMS_PER_PAGE, search: deferredSearch, unread: filterUnread, reminder: filterReminder });
             if (sequence !== requestSequence.current) return;
             setMessages(data || []);
             setTotalCount(count || 0);
@@ -37,15 +39,30 @@ export default function AllMessagesCenter() {
         } finally {
             if (sequence === requestSequence.current) setLoading(false);
         }
-    };
+    }, [page, deferredSearch, filterUnread, filterReminder]);
 
     useEffect(() => {
-        fetchMessages();
+        void fetchMessages();
+        return () => { ++requestSequence.current; };
+    }, [fetchMessages]);
 
-        
-        const interval = window.setInterval(fetchMessages, 5000);
-        return () => { ++requestSequence.current; window.clearInterval(interval); };
-    }, [page, searchTerm, filterUnread, filterReminder]);
+    const realtimeIds = useRef(new Set<string>());
+    const onMessage = useCallback((message: RealtimeMessage) => {
+        const eventId = `${message._table}:${message.id}`;
+        if (realtimeIds.current.has(eventId)) return;
+        realtimeIds.current.add(eventId);
+        const metadata = message.metadata || {};
+        const search = deferredSearch.toLowerCase();
+        const matches = (!search || message.body.toLowerCase().includes(search) || message.sender.toLowerCase().includes(search))
+            && (!filterUnread || metadata.is_unread === true)
+            && (!filterReminder || metadata.is_reminder === true);
+        if (!matches) return;
+        setTotalCount(count => count + 1);
+        if (page === 1) setMessages(current => [message, ...current.filter(item => item.id !== message.id)].slice(0, ITEMS_PER_PAGE));
+        setError(null);
+    }, [deferredSearch, filterReminder, filterUnread, page]);
+    useRealtimeMessage(onMessage);
+    useRealtimeReconcile(fetchMessages);
 
     const handleRefresh = () => {
         setPage(1);
@@ -87,8 +104,8 @@ export default function AllMessagesCenter() {
 
     const filtered = messages.filter(m => {
         const meta = m.metadata || {};
-        const matchesSearch = (m.body && m.body.toLowerCase().includes(searchTerm.toLowerCase())) || 
-                              (m.sender && m.sender.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesSearch = (m.body && m.body.toLowerCase().includes(deferredSearch.toLowerCase())) ||
+                              (m.sender && m.sender.toLowerCase().includes(deferredSearch.toLowerCase()));
         
         const isUnread = meta.is_unread === true;
         const isReminder = meta.is_reminder === true;
@@ -136,7 +153,7 @@ export default function AllMessagesCenter() {
                             type="text"
                             aria-label="Search message records" placeholder="Search records..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                             className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all shadow-sm"
                         />
                     </div>
