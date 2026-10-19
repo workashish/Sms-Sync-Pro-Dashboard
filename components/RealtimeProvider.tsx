@@ -47,6 +47,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         const abort = new AbortController();
         let active = true;
         let refreshTimer: number | undefined;
+        let startRetryTimer: number | undefined;
+        let refreshRetryDelay = 5_000;
+        let startRetryDelay = 5_000;
         let starting = false;
         let client: SupabaseClient | undefined;
         let channel: RealtimeChannel | undefined;
@@ -66,19 +69,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             dispatch(REALTIME_RECONCILE_EVENT);
         };
 
+        const refreshAuth = async () => {
+            if (!active || !client) return;
+            try {
+                const fresh = await getToken(abort.signal);
+                await client.realtime.setAuth(fresh.token);
+                refreshRetryDelay = 5_000;
+                setState(navigator.onLine ? 'live' : 'offline');
+                scheduleTokenRefresh(fresh.expiresAt);
+            } catch {
+                if (!active) return;
+                setState(navigator.onLine ? 'unavailable' : 'offline');
+                window.clearTimeout(refreshTimer);
+                refreshTimer = window.setTimeout(() => void refreshAuth(), refreshRetryDelay);
+                refreshRetryDelay = Math.min(refreshRetryDelay * 2, 60_000);
+            }
+        };
+
         const scheduleTokenRefresh = (expiresAt: number) => {
             window.clearTimeout(refreshTimer);
             const delay = Math.max(15_000, expiresAt * 1000 - Date.now() - 60_000);
-            refreshTimer = window.setTimeout(async () => {
-                if (!active || !client) return;
-                try {
-                    const fresh = await getToken(abort.signal);
-                    await client.realtime.setAuth(fresh.token);
-                    scheduleTokenRefresh(fresh.expiresAt);
-                } catch {
-                    if (active) setState(navigator.onLine ? 'unavailable' : 'offline');
-                }
-            }, delay);
+            refreshTimer = window.setTimeout(() => void refreshAuth(), delay);
+        };
+
+        const scheduleStartRetry = () => {
+            window.clearTimeout(startRetryTimer);
+            startRetryTimer = window.setTimeout(() => {
+                void start();
+                startRetryDelay = Math.min(startRetryDelay * 2, 60_000);
+            }, startRetryDelay);
         };
 
         const start = async () => {
@@ -88,6 +107,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             try {
                 const [config, supabaseModule] = await Promise.all([getToken(abort.signal), import('@supabase/supabase-js')]);
                 if (!active) return;
+                startRetryDelay = 5_000;
+                window.clearTimeout(startRetryTimer);
                 client = supabaseModule.createClient(config.url, config.publicKey, {
                     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
                     realtime: { params: { eventsPerSecond: 20 } },
@@ -130,12 +151,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
                 if (!active || abort.signal.aborted) return;
                 setState(navigator.onLine ? 'unavailable' : 'offline');
                 console.warn(error instanceof Error ? error.message : 'Realtime setup failed.');
+                scheduleStartRetry();
             } finally {
                 starting = false;
             }
         };
 
-        const onOnline = () => { setState('connecting'); if (client) reconcile(); else void start(); };
+        const onOnline = () => {
+            setState('connecting');
+            if (client) { void refreshAuth(); reconcile(); }
+            else void start();
+        };
         const onOffline = () => setState('offline');
         const onVisibility = () => { if (document.visibilityState === 'visible') reconcile(); };
         window.addEventListener('online', onOnline);
@@ -148,6 +174,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             active = false;
             abort.abort();
             window.clearTimeout(refreshTimer);
+            window.clearTimeout(startRetryTimer);
             window.removeEventListener('online', onOnline);
             window.removeEventListener('offline', onOffline);
             window.removeEventListener('focus', reconcile);
